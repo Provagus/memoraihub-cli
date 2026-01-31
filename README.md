@@ -34,6 +34,23 @@ meh search "timeout"
 meh tree
 ```
 
+### Remote Usage
+
+```bash
+# Set remote context (persists across commands)
+meh context set http://localhost:3000/my-kb
+
+# Now all commands use remote KB
+meh search "timeout"
+meh add --path "@project/api" "New discovery"
+
+# Check current context
+meh context show
+
+# Switch back to local
+meh context clear
+```
+
 ## 🤖 For AI Agents (MCP Integration)
 
 meh exposes a **Model Context Protocol (MCP)** server with 10 tools.
@@ -180,6 +197,14 @@ meh add --path "@readme" --tags "onboarding,ai" "$(cat templates/readme.md.templ
 
 The `@readme` fact serves as onboarding for AI agents - explaining the KB structure, conventions, and workflow.
 
+### Auto-Display on First Search
+
+When an AI agent connects via MCP and performs their first `meh_search`, the `@readme` fact is **automatically displayed** at the top of results. This ensures every AI session starts with proper onboarding.
+
+- Shown only once per MCP session
+- No spam on subsequent searches
+- Tip included to view again with `meh_get_fact`
+
 ---
 
 ## �📂 Path System
@@ -242,6 +267,17 @@ meh extend <id> "Additional information"
 meh deprecate <id> --reason "Outdated"
 ```
 
+### Context Management
+
+```bash
+meh context                    # Show current context (local/remote)
+meh context show               # Same as above
+meh context set http://url/kb  # Set remote KB (persists)
+meh context set other-kb       # Change KB on same server
+meh context set local          # Switch to local mode
+meh context clear              # Clear remote settings
+```
+
 ### Notifications
 
 ```bash
@@ -250,6 +286,9 @@ meh notifications count        # Show counts
 meh notifications ack all      # Acknowledge all
 meh notifications subscribe --categories "facts,security"
 ```
+
+> **Hint:** After most commands, you'll see a notification hint if there are pending notifications:
+> `📬 3 notification(s) pending (meh notifications)`
 
 ### Statistics
 
@@ -304,13 +343,32 @@ Each fact has trust score (0.0-1.0) based on:
 - Age decay (0.5%/day after 90 days)
 - Confirmation boosts (+0.1 each)
 
-### Session-Based Notifications
+### Session-Based Features
 
-Each AI session has independent:
-- Read cursor (what notifications were seen)
-- Subscription preferences (categories, paths, priority)
+Each AI session (MCP connection) has independent:
+- **Read cursor** — what notifications were seen
+- **Subscription preferences** — categories, paths, priority filters
+- **Onboarding tracking** — `@readme` shown once per session
 
-This allows multiple AI agents to work without conflicts.
+This allows multiple AI agents to work on the same KB without conflicts.
+
+### AI Onboarding (`@readme`)
+
+Create a `@readme` fact to onboard AI agents automatically:
+
+```bash
+meh add --path "@readme" --tags "onboarding" "# My Project KB
+
+## How to use this knowledge base
+...
+"
+```
+
+AI agents see this on their first search. Include:
+- What this KB is about
+- Path conventions used
+- What to document vs skip
+- How to vote on proposals (use `meh_extend`)
 
 ---
 

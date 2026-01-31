@@ -313,14 +313,19 @@ impl MehMcpServer {
 
         // Check for pending notifications and inject at the top
         let notification_header = self.get_notification_header();
+        
+        // Check for onboarding - show @readme on first search of session
+        let onboarding_content = self.get_onboarding_content();
 
         if facts.is_empty() {
-            let mut result = notification_header;
+            let mut result = onboarding_content;
+            result.push_str(&notification_header);
             result.push_str("No facts found matching your query.");
             return Ok(result);
         }
 
-        let mut result = notification_header;
+        let mut result = onboarding_content;
+        result.push_str(&notification_header);
         result.push_str(&format!("Found {} facts:\n\n", facts.len()));
         for fact in facts {
             result.push_str(&format!(
@@ -351,6 +356,38 @@ impl MehMcpServer {
                     "📬 {} new notification(s). Use `meh_get_notifications` to view.\n\n",
                     pending
                 );
+            }
+        }
+        String::new()
+    }
+
+    /// Get onboarding content (@readme) for first search of session
+    fn get_onboarding_content(&self) -> String {
+        // Check if we already showed onboarding this session
+        if let Ok(notif_storage) = self.open_notification_storage() {
+            let already_shown = notif_storage.is_onboarding_shown(&self.session_id).unwrap_or(true);
+            
+            if already_shown {
+                return String::new();
+            }
+
+            // Try to get @readme fact
+            let readme = self.storage.get_by_path("@readme")
+                .ok()
+                .and_then(|facts| facts.into_iter().next());
+
+            if let Some(fact) = readme {
+                // Mark onboarding as shown
+                let _ = notif_storage.set_onboarding_shown(&self.session_id);
+
+                return format!(
+                    "📖 **Welcome to this knowledge base!**\n\n---\n\n## {}\n\n{}\n\n---\n\n💡 *This onboarding is shown once per session. Use `meh_get_fact` with `@readme` to see it again.*\n\n",
+                    fact.title,
+                    fact.content
+                );
+            } else {
+                // No readme, but still mark as shown so we don't check every time
+                let _ = notif_storage.set_onboarding_shown(&self.session_id);
             }
         }
         String::new()

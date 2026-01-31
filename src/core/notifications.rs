@@ -411,11 +411,29 @@ impl NotificationStorage {
                 session_id TEXT PRIMARY KEY,
                 last_seen_id TEXT,
                 subscription TEXT NOT NULL DEFAULT '{}',
+                onboarding_shown INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 last_active TEXT NOT NULL
             );
+
+            -- Migration: add onboarding_shown column if missing
+            -- SQLite doesn't support ADD COLUMN IF NOT EXISTS, so we check first
             "#,
         )?;
+
+        // Check if onboarding_shown column exists, add if not
+        let has_onboarding: bool = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='onboarding_shown'",
+            [],
+            |row| Ok(row.get::<_, i64>(0)? > 0),
+        ).unwrap_or(false);
+
+        if !has_onboarding {
+            let _ = self.conn.execute(
+                "ALTER TABLE sessions ADD COLUMN onboarding_shown INTEGER NOT NULL DEFAULT 0",
+                [],
+            );
+        }
         Ok(())
     }
 
@@ -586,6 +604,35 @@ impl NotificationStorage {
     /// Alias for pending_count (used by CLI hint)
     pub fn count_pending_for_session(&self, session_id: &str) -> Result<usize> {
         self.pending_count(session_id)
+    }
+
+    /// Check if onboarding (@readme) was shown for this session
+    pub fn is_onboarding_shown(&self, session_id: &str) -> Result<bool> {
+        // Ensure session exists
+        let _ = self.get_or_create_session(session_id)?;
+        
+        let shown: i64 = self.conn.query_row(
+            "SELECT onboarding_shown FROM sessions WHERE session_id = ?1",
+            params![session_id],
+            |row| row.get(0),
+        ).unwrap_or(0);
+        
+        Ok(shown != 0)
+    }
+
+    /// Mark onboarding as shown for this session
+    pub fn set_onboarding_shown(&self, session_id: &str) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+        
+        // Ensure session exists
+        let _ = self.get_or_create_session(session_id)?;
+        
+        self.conn.execute(
+            "UPDATE sessions SET onboarding_shown = 1, last_active = ?1 WHERE session_id = ?2",
+            params![&now, session_id],
+        )?;
+        
+        Ok(())
     }
 
     /// Get critical pending count for a session
