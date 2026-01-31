@@ -784,6 +784,10 @@ pub fn run_mcp_server(db_path: std::path::PathBuf) -> anyhow::Result<()> {
     eprintln!("meh MCP server starting...");
     
     let storage = Storage::open(&db_path)?;
+    
+    // Auto-GC on startup if enabled in config
+    run_auto_gc(&storage);
+    
     let mut server = MehMcpServer::new(storage);
     
     let stdin = std::io::stdin();
@@ -823,4 +827,31 @@ pub fn run_mcp_server(db_path: std::path::PathBuf) -> anyhow::Result<()> {
 
     eprintln!("meh MCP server stopping.");
     Ok(())
+}
+
+/// Run automatic garbage collection if enabled
+fn run_auto_gc(storage: &Storage) {
+    let config = match crate::config::Config::load() {
+        Ok(c) => c,
+        Err(_) => return, // Config not available, skip GC
+    };
+
+    if !config.core.gc_auto {
+        return;
+    }
+
+    let retention_days = config.core.gc_retention_days;
+    
+    match storage.garbage_collect(retention_days, false) {
+        Ok(result) if result.deleted_count > 0 => {
+            eprintln!("🧹 Auto-GC: Cleaned {} deprecated/superseded fact(s) older than {} days", 
+                     result.deleted_count, retention_days);
+        }
+        Ok(_) => {
+            // Nothing to clean, don't log
+        }
+        Err(e) => {
+            eprintln!("⚠️ Auto-GC failed: {}", e);
+        }
+    }
 }

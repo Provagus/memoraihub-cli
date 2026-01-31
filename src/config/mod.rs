@@ -56,6 +56,14 @@ pub struct CoreConfig {
     
     #[serde(default = "default_cache_max_mb")]
     pub cache_max_mb: usize,
+    
+    /// Retention period for deprecated/superseded facts (days)
+    #[serde(default = "default_gc_retention_days")]
+    pub gc_retention_days: u32,
+    
+    /// Auto-run GC on MCP server start
+    #[serde(default = "default_gc_auto")]
+    pub gc_auto: bool,
 }
 
 impl Default for CoreConfig {
@@ -64,6 +72,8 @@ impl Default for CoreConfig {
             default_source: default_source(),
             cache_dir: None,
             cache_max_mb: default_cache_max_mb(),
+            gc_retention_days: default_gc_retention_days(),
+            gc_auto: default_gc_auto(),
         }
     }
 }
@@ -74,6 +84,14 @@ fn default_source() -> String {
 
 fn default_cache_max_mb() -> usize {
     100
+}
+
+fn default_gc_retention_days() -> u32 {
+    30
+}
+
+fn default_gc_auto() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

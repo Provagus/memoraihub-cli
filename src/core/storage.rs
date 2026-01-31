@@ -482,6 +482,83 @@ impl Storage {
             deprecated_facts: deprecated as usize,
         })
     }
+
+    /// Garbage collect old deprecated/superseded facts
+    /// 
+    /// Removes facts that are:
+    /// - status = 'deprecated' AND updated_at older than retention_days
+    /// - superseded_by IS NOT NULL (someone created a correction) AND updated_at older than retention_days
+    /// 
+    /// # Arguments
+    /// * `retention_days` - How many days to keep deprecated facts (default: 30)
+    /// * `dry_run` - If true, only return candidates without deleting
+    /// 
+    /// # Returns
+    /// GcResult with count of deleted facts and list of candidates
+    pub fn garbage_collect(&self, retention_days: u32, dry_run: bool) -> Result<GcResult> {
+        let cutoff = chrono::Utc::now() - chrono::Duration::days(retention_days as i64);
+        let cutoff_str = cutoff.to_rfc3339();
+
+        // Find candidates
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id, path, status, updated_at,
+                   CASE 
+                       WHEN status = 'deprecated' THEN 'deprecated'
+                       ELSE 'superseded'
+                   END as reason
+            FROM facts 
+            WHERE (status = 'deprecated' OR id IN (
+                SELECT supersedes FROM facts WHERE supersedes IS NOT NULL
+            ))
+            AND updated_at < ?1
+            ORDER BY updated_at ASC
+            "#
+        )?;
+
+        let candidates: Vec<GcCandidate> = stmt
+            .query_map([&cutoff_str], |row| {
+                let reason_str: String = row.get(4)?;
+                Ok(GcCandidate {
+                    id: row.get(0)?,
+                    path: row.get(1)?,
+                    reason: if reason_str == "deprecated" {
+                        GcReason::Deprecated
+                    } else {
+                        GcReason::Superseded
+                    },
+                    updated_at: row.get(3)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if dry_run {
+            return Ok(GcResult {
+                deleted_count: 0,
+                candidates,
+            });
+        }
+
+        // Actually delete (also from FTS)
+        let deleted_count = self.conn.execute(
+            r#"
+            DELETE FROM facts 
+            WHERE (status = 'deprecated' OR id IN (
+                SELECT supersedes FROM facts WHERE supersedes IS NOT NULL
+            ))
+            AND updated_at < ?1
+            "#,
+            [&cutoff_str],
+        )?;
+
+        // Rebuild FTS index after deletion
+        self.conn.execute("INSERT INTO facts_fts(facts_fts) VALUES('rebuild')", [])?;
+
+        Ok(GcResult {
+            deleted_count,
+            candidates,
+        })
+    }
 }
 
 /// Path information for listing
@@ -498,6 +575,31 @@ pub struct StorageStats {
     pub total_facts: usize,
     pub active_facts: usize,
     pub deprecated_facts: usize,
+}
+
+/// Result of garbage collection
+#[derive(Debug, Clone)]
+pub struct GcResult {
+    /// Number of facts deleted
+    pub deleted_count: usize,
+    /// Facts that would be deleted (dry-run)
+    pub candidates: Vec<GcCandidate>,
+}
+
+/// A fact candidate for garbage collection
+#[derive(Debug, Clone)]
+pub struct GcCandidate {
+    pub id: String,
+    pub path: String,
+    pub reason: GcReason,
+    pub updated_at: String,
+}
+
+/// Why a fact is being garbage collected
+#[derive(Debug, Clone)]
+pub enum GcReason {
+    Deprecated,
+    Superseded,
 }
 
 #[cfg(test)]
@@ -555,6 +657,76 @@ mod tests {
 
         let alpha_facts = storage.get_by_path_prefix("@products/alpha")?;
         assert_eq!(alpha_facts.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_garbage_collect_deprecated() -> Result<()> {
+        let storage = Storage::open_memory()?;
+
+        // Create a deprecated fact with old timestamp
+        let mut fact = Fact::new("@test/deprecated", "Old fact", "This is deprecated");
+        fact.status = crate::core::fact::Status::Deprecated;
+        fact.updated_at = chrono::Utc::now() - chrono::Duration::days(60);
+        storage.insert(&fact)?;
+
+        // Create an active fact
+        storage.insert(&Fact::new("@test/active", "Active", "Keep this"))?;
+
+        // Dry run should find the deprecated fact
+        let dry_result = storage.garbage_collect(30, true)?;
+        assert_eq!(dry_result.candidates.len(), 1);
+        assert_eq!(dry_result.deleted_count, 0); // Dry run doesn't delete
+
+        // Actually delete
+        let result = storage.garbage_collect(30, false)?;
+        assert_eq!(result.deleted_count, 1);
+
+        // Active fact should still exist
+        let stats = storage.stats()?;
+        assert_eq!(stats.total_facts, 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_garbage_collect_respects_retention() -> Result<()> {
+        let storage = Storage::open_memory()?;
+
+        // Create a recently deprecated fact (should NOT be collected)
+        let mut recent = Fact::new("@test/recent", "Recent", "Recently deprecated");
+        recent.status = crate::core::fact::Status::Deprecated;
+        recent.updated_at = chrono::Utc::now() - chrono::Duration::days(5);
+        storage.insert(&recent)?;
+
+        // Create an old deprecated fact (should be collected)
+        let mut old = Fact::new("@test/old", "Old", "Long ago deprecated");
+        old.status = crate::core::fact::Status::Deprecated;
+        old.updated_at = chrono::Utc::now() - chrono::Duration::days(60);
+        storage.insert(&old)?;
+
+        let result = storage.garbage_collect(30, false)?;
+        assert_eq!(result.deleted_count, 1); // Only old one
+
+        // Recent should still exist (check by ID since search filters by status)
+        let remaining = storage.get_by_id(&recent.id)?;
+        assert!(remaining.is_some());
+        
+        // Old should be gone
+        let deleted = storage.get_by_id(&old.id)?;
+        assert!(deleted.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_garbage_collect_empty_db() -> Result<()> {
+        let storage = Storage::open_memory()?;
+
+        let result = storage.garbage_collect(30, false)?;
+        assert_eq!(result.deleted_count, 0);
+        assert!(result.candidates.is_empty());
 
         Ok(())
     }

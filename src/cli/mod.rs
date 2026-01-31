@@ -11,6 +11,7 @@ pub mod context;
 pub mod correct;
 pub mod deprecate;
 pub mod extend;
+pub mod gc;
 pub mod init;
 pub mod kbs;
 pub mod notifications;
@@ -75,6 +76,9 @@ pub enum Commands {
 
     /// Deprecate a fact
     Deprecate(deprecate::DeprecateArgs),
+
+    /// Garbage collect old deprecated/superseded facts
+    Gc(gc::GcArgs),
 
     /// Get or set configuration
     Config(config::ConfigArgs),
