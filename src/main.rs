@@ -39,16 +39,33 @@ async fn main() -> Result<()> {
 
 async fn run_serve(args: meh::cli::serve::ServeArgs) -> Result<()> {
     use meh::config::Config;
+    use meh::core::storage::Storage;
     
-    let config = Config::load()?;
-    // data_dir() actually returns full path to data.db, not just directory
-    let db_path = config.data_dir();
+    // Determine database path
+    let db_path = if let Some(ref path) = args.db {
+        path.clone()
+    } else {
+        let config = Config::load()?;
+        config.data_dir()
+    };
 
+    // Auto-create database if needed
     if !db_path.exists() {
-        anyhow::bail!("Database not found at {:?}. Run 'meh init' first.", db_path);
+        if args.auto_init {
+            eprintln!("📁 Creating database at {:?}", db_path);
+            if let Some(parent) = db_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            // Opening storage will create the database
+            let _ = Storage::open(&db_path)?;
+            eprintln!("✅ Database initialized");
+        } else {
+            anyhow::bail!("Database not found at {:?}. Run 'meh init' or use --auto-init.", db_path);
+        }
     }
 
     eprintln!("🚀 Starting MCP server (transport: {})", args.transport);
+    eprintln!("📂 Database: {:?}", db_path);
     
     match args.transport.as_str() {
         "stdio" => {

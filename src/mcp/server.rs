@@ -161,13 +161,15 @@ impl MehMcpServer {
                 },
                 {
                     "name": "meh_browse",
-                    "description": "Browse the knowledge base path structure. Like 'ls' or 'tree' command.",
+                    "description": "Browse the knowledge base path structure. Like 'ls' or 'tree' command. Paginated for scalability.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
                             "path": { "type": "string", "description": "Path prefix to browse (default: root)", "default": "@" },
                             "mode": { "type": "string", "enum": ["ls", "tree"], "description": "Browse mode: 'ls' for flat list, 'tree' for hierarchical view", "default": "ls" },
-                            "depth": { "type": "integer", "description": "Maximum depth for tree mode (default: 3)", "default": 3 }
+                            "depth": { "type": "integer", "description": "Maximum depth for tree mode (default: 3)", "default": 3 },
+                            "limit": { "type": "integer", "description": "Maximum number of results (default: 100)", "default": 100 },
+                            "cursor": { "type": "string", "description": "Cursor for pagination (path to start after)" }
                         }
                     }
                 },
@@ -339,9 +341,9 @@ impl MehMcpServer {
         let tool_args: MehBrowseTool = serde_json::from_value(args.clone())
             .map_err(|e| format!("Invalid params: {}", e))?;
 
-        // Use list_children for browsing
-        let entries = self.storage
-            .list_children(&tool_args.path)
+        // Use list_children with pagination
+        let (entries, has_more) = self.storage
+            .list_children(&tool_args.path, tool_args.limit, tool_args.cursor.as_deref())
             .map_err(|e| format!("Browse error: {}", e))?;
 
         if entries.is_empty() {
@@ -349,8 +351,15 @@ impl MehMcpServer {
         }
 
         let mut result = String::new();
-        for entry in entries {
-            result.push_str(&format!("{} ({})\n", entry.path, entry.fact_count));
+        for entry in &entries {
+            result.push_str(&format!("{} ({})", entry.path, entry.fact_count));
+            result.push('\n');
+        }
+        
+        if has_more {
+            if let Some(last) = entries.last() {
+                result.push_str(&format!("\n[More results available. Use cursor: \"{}\"]", last.path));
+            }
         }
         Ok(result)
     }

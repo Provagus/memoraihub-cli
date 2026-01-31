@@ -41,11 +41,18 @@ pub struct MehBrowseTool {
     /// Maximum depth for tree mode (default: 3)
     #[serde(default = "default_depth")]
     pub depth: i32,
+    /// Maximum number of results (default: 100)
+    #[serde(default = "default_browse_limit")]
+    pub limit: i64,
+    /// Cursor for pagination (path to start after)
+    #[serde(default)]
+    pub cursor: Option<String>,
 }
 
 fn default_path() -> String { "@".to_string() }
 fn default_mode() -> String { "ls".to_string() }
 fn default_depth() -> i32 { 3 }
+fn default_browse_limit() -> i64 { 100 }
 
 /// Add a new fact to the knowledge base
 #[derive(Debug, Deserialize, Serialize)]

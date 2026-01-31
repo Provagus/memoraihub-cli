@@ -54,7 +54,7 @@ pub fn run_ls(args: LsArgs) -> Result<()> {
 
     // 2. Get children at the given path
     let prefix = args.path.trim_end_matches('/');
-    let children = storage.list_children(prefix)?;
+    let children = storage.list_children_all(prefix)?;
 
     if children.is_empty() {
         println!("No facts found under: {}", prefix);

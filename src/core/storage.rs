@@ -34,6 +34,9 @@ impl Storage {
         )
         .context("Failed to open database")?;
 
+        // Enable WAL mode for better concurrent access
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")?;
+
         let storage = Self { conn };
         storage.init_schema()?;
         
@@ -193,8 +196,9 @@ impl Storage {
         Ok(facts)
     }
 
-    /// List child paths (for browse/ls)
-    pub fn list_children(&self, parent: &str) -> Result<Vec<PathInfo>> {
+    /// List child paths (for browse/ls) with pagination
+    /// Returns (paths, has_more) tuple
+    pub fn list_children(&self, parent: &str, limit: i64, cursor: Option<&str>) -> Result<(Vec<PathInfo>, bool)> {
         let prefix = if parent.is_empty() || parent == "/" {
             String::new()
         } else {
@@ -202,32 +206,58 @@ impl Storage {
         };
 
         let pattern = format!("{}%", prefix);
+        let cursor_path = cursor.unwrap_or("");
+        
+        // Fetch limit+1 to know if there are more results
+        let fetch_limit = limit + 1;
         
         let mut stmt = self.conn.prepare(
             r#"
             SELECT 
-                path,
-                COUNT(*) as count
-            FROM facts 
-            WHERE path LIKE ?1 AND status = 'active'
-            GROUP BY 
-                CASE 
-                    WHEN instr(substr(path, length(?2) + 1), '/') > 0 
-                    THEN substr(path, 1, length(?2) + instr(substr(path, length(?2) + 1), '/') - 1)
-                    ELSE path
-                END
-            ORDER BY path
+                grouped_path,
+                SUM(cnt) as count
+            FROM (
+                SELECT 
+                    CASE 
+                        WHEN instr(substr(path, length(?2) + 1), '/') > 0 
+                        THEN substr(path, 1, length(?2) + instr(substr(path, length(?2) + 1), '/') - 1)
+                        ELSE path
+                    END as grouped_path,
+                    COUNT(*) as cnt
+                FROM facts 
+                WHERE path LIKE ?1 AND status = 'active'
+                GROUP BY path
+            )
+            WHERE grouped_path > ?3
+            GROUP BY grouped_path
+            ORDER BY grouped_path
+            LIMIT ?4
             "#
         )?;
 
-        let results = stmt.query_map([&pattern, &prefix], |row| {
-            Ok(PathInfo {
-                path: row.get(0)?,
-                fact_count: row.get::<_, i64>(1)? as usize,
-            })
-        })?
+        let mut results: Vec<PathInfo> = stmt.query_map(
+            rusqlite::params![&pattern, &prefix, cursor_path, fetch_limit],
+            |row| {
+                Ok(PathInfo {
+                    path: row.get(0)?,
+                    fact_count: row.get::<_, i64>(1)? as usize,
+                })
+            }
+        )?
         .collect::<Result<Vec<_>, _>>()?;
 
+        // Check if there are more results
+        let has_more = results.len() > limit as usize;
+        if has_more {
+            results.pop(); // Remove the extra item
+        }
+
+        Ok((results, has_more))
+    }
+
+    /// List child paths without pagination (for CLI backwards compatibility)
+    pub fn list_children_all(&self, parent: &str) -> Result<Vec<PathInfo>> {
+        let (results, _) = self.list_children(parent, 10000, None)?;
         Ok(results)
     }
 
