@@ -186,21 +186,61 @@ impl Config {
         None
     }
 
+    /// Find local .meh/data.db walking up directories
+    pub fn find_local_db() -> Option<PathBuf> {
+        let mut current = std::env::current_dir().ok()?;
+        
+        loop {
+            let db_path = current.join(".meh").join("data.db");
+            if db_path.exists() {
+                return Some(db_path);
+            }
+
+            if !current.pop() {
+                break;
+            }
+        }
+
+        None
+    }
+
     /// Get global config path (~/.meh/config.toml)
     pub fn global_config_path() -> Option<PathBuf> {
         dirs::home_dir().map(|h| h.join(".meh").join("config.toml"))
     }
 
-    /// Get data directory path
+    /// Get global database path (~/.meh/data.db)
+    pub fn global_db_path() -> Option<PathBuf> {
+        dirs::home_dir().map(|h| h.join(".meh").join("data.db"))
+    }
+
+    /// Get data directory path with priority:
+    /// 1. MEH_DATABASE env var
+    /// 2. Local .meh/data.db (walking up from CWD)
+    /// 3. Global ~/.meh/data.db
     pub fn data_dir(&self) -> PathBuf {
-        // Local .meh/data.db or global ~/.meh/data.db
-        if let Some(local) = Self::find_local_config() {
-            local.parent().unwrap().join("data.db")
-        } else if let Some(global) = Self::global_config_path() {
-            global.parent().unwrap().join("data.db")
-        } else {
-            PathBuf::from(".meh").join("data.db")
+        // 1. Environment variable
+        if let Ok(env_path) = std::env::var("MEH_DATABASE") {
+            return PathBuf::from(env_path);
         }
+
+        // 2. Local .meh/data.db (search up from current directory)
+        if let Some(local_db) = Self::find_local_db() {
+            return local_db;
+        }
+
+        // 3. Local .meh/ directory exists (even without data.db yet)
+        if let Some(local_config) = Self::find_local_config() {
+            return local_config.parent().unwrap().join("data.db");
+        }
+
+        // 4. Global ~/.meh/data.db
+        if let Some(global) = Self::global_db_path() {
+            return global;
+        }
+
+        // 5. Fallback to current directory
+        PathBuf::from(".meh").join("data.db")
     }
 }
 

@@ -2,10 +2,10 @@
 name = "meh"
 version = "0.1.0"
 edition = "2021"
-description = "AI Knowledge Management - git for AI memory"
+description = "memoraihub-cli - AI Knowledge Management"
 license = "MIT"
-repository = "https://github.com/user/meh"
-keywords = ["ai", "knowledge", "memory", "cli", "mcp"]
+repository = "https://github.com/Provagus/memoraihub-cli"
+keywords = ["ai", "knowledge", "memory", "cli", "mcp", "memoraihub"]
 categories = ["command-line-utilities", "database"]
 
 [dependencies]

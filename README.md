@@ -1,8 +1,8 @@
-# meh — Memory Hub for AI Agents
+# memoraihub-cli (meh)
 
 > **Wikipedia for AI** — A scalable knowledge base that AI agents can read and write.
 
-meh is a local-first knowledge management system designed for AI agents. Think of it as Wikipedia, but:
+**memoraihub-cli** is a local-first knowledge management system designed for AI agents. The CLI command is `meh` (Memory Hub). Think of it as Wikipedia, but:
 - **Multiple pages** organized in hierarchical paths
 - **AI-native** — designed for agents to read and write
 - **Append-only** — no destructive updates, full history
