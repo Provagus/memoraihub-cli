@@ -265,12 +265,28 @@ impl Storage {
         Ok(results)
     }
 
-    /// Escape query for FTS5 (handles special characters like hyphens)
+    /// Escape and prepare query for FTS5
+    /// Converts natural language query to FTS5 syntax with OR between words
     fn escape_fts_query(query: &str) -> String {
-        // FTS5 treats - as NOT operator. Quote the entire query to search literally.
-        // Also escape any existing quotes.
-        let escaped = query.replace('"', "\"\"");
-        format!("\"{}\"", escaped)
+        // Split into words and quote each one (to handle special chars like hyphens)
+        // Use OR so any matching word returns results (more forgiving for AI queries)
+        let words: Vec<String> = query
+            .split_whitespace()
+            .filter(|w| !w.is_empty())
+            .map(|w| {
+                // Escape quotes and wrap in quotes to handle special chars
+                let escaped = w.replace('"', "\"\"");
+                format!("\"{}\"", escaped)
+            })
+            .collect();
+        
+        if words.is_empty() {
+            return String::new();
+        }
+        
+        // Join with OR - finds documents with ANY of the words
+        // This is more forgiving for natural language queries from AI
+        words.join(" OR ")
     }
 
     /// Full-text search
