@@ -72,17 +72,57 @@ struct MehMcpServer {
     initialized: bool,
     /// Unique session ID for this MCP connection
     session_id: String,
+    /// Current KB name (for write policy checking)
+    kb_name: String,
+    /// Write policy for current KB
+    write_policy: crate::config::WritePolicy,
+    /// Whether current KB is remote (requires pending queue for ask policy)
+    is_remote_kb: bool,
+    /// Remote KB URL (if remote)
+    remote_url: Option<String>,
 }
 
 impl MehMcpServer {
     fn new(storage: Storage) -> Self {
         // Generate unique session ID for this MCP connection
         let session_id = format!("mcp-{}", Ulid::new());
+        
+        // Load config to get write policy and KB type
+        let (kb_name, write_policy, is_remote, remote_url) = match crate::config::Config::load() {
+            Ok(config) => {
+                let kb_name = config.primary_kb().to_string();
+                let policy = config.get_write_policy(&kb_name);
+                let kb_config = config.get_kb(&kb_name);
+                let is_remote = kb_config.map(|k| k.kb_type == "remote").unwrap_or(false);
+                let url = kb_config.and_then(|k| k.url.clone());
+                (kb_name, policy, is_remote, url)
+            }
+            Err(_) => ("local".to_string(), crate::config::WritePolicy::Allow, false, None),
+        };
+        
         Self {
             storage,
             initialized: false,
             session_id,
+            kb_name,
+            write_policy,
+            is_remote_kb: is_remote,
+            remote_url,
         }
+    }
+
+    /// Open pending queue for remote KB writes
+    fn open_pending_queue(&self) -> Result<crate::core::PendingQueue, String> {
+        let config = crate::config::Config::load()
+            .map_err(|e| format!("Config error: {}", e))?;
+        
+        let queue_path = config.data_dir()
+            .parent()
+            .map(|p| p.join("pending_queue.db"))
+            .unwrap_or_else(|| std::path::PathBuf::from(".meh/pending_queue.db"));
+        
+        crate::core::PendingQueue::open(&queue_path)
+            .map_err(|e| format!("Pending queue error: {}", e))
     }
 
     /// Handle a JSON-RPC request
@@ -499,8 +539,33 @@ impl MehMcpServer {
     }
 
     fn do_add(&mut self, args: &Value) -> Result<String, String> {
+        // Check write policy
+        if self.write_policy == crate::config::WritePolicy::Deny {
+            return Err(format!("Write denied: KB '{}' has write policy 'deny'", self.kb_name));
+        }
+
         let tool_args: MehAddTool = serde_json::from_value(args.clone())
             .map_err(|e| format!("Invalid params: {}", e))?;
+
+        // If remote KB with "ask" policy, queue locally instead of writing to remote
+        if self.is_remote_kb && self.write_policy == crate::config::WritePolicy::Ask {
+            let queue = self.open_pending_queue()?;
+            let pending = crate::core::PendingWrite::new_add(
+                &self.kb_name,
+                self.remote_url.as_deref().unwrap_or(""),
+                &tool_args.path,
+                &tool_args.content,
+                tool_args.tags,
+            );
+            let id = pending.id;
+            queue.enqueue(&pending)
+                .map_err(|e| format!("Queue error: {}", e))?;
+            
+            return Ok(format!(
+                "⏳ Queued for remote KB '{}' (pending approval): queue-{}\n  Path: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
+                self.kb_name, id, tool_args.path, id
+            ));
+        }
 
         // Create title from first line or first 50 chars
         let title = tool_args.content
@@ -513,17 +578,32 @@ impl MehMcpServer {
 
         // Create new fact
         let mut fact = Fact::new(&tool_args.path, &title, &tool_args.content);
-        fact.tags = tool_args.tags;
+        fact.tags = tool_args.tags.clone();
+
+        // If write policy is "ask" (local KB), set status to pending_review
+        let is_pending = self.write_policy == crate::config::WritePolicy::Ask;
+        if is_pending {
+            fact.status = crate::core::fact::Status::PendingReview;
+        }
 
         let id = fact.id;
         self.storage
             .insert(&fact)
             .map_err(|e| format!("Add error: {}", e))?;
 
-        Ok(format!("✓ Created fact: meh-{}\n  Path: {}", id, tool_args.path))
+        if is_pending {
+            Ok(format!("⏳ Created fact (pending review): meh-{}\n  Path: {}\n  ℹ️ Use `meh pending approve meh-{}` to activate", id, tool_args.path, id))
+        } else {
+            Ok(format!("✓ Created fact: meh-{}\n  Path: {}", id, tool_args.path))
+        }
     }
 
     fn do_correct(&mut self, args: &Value) -> Result<String, String> {
+        // Check write policy
+        if self.write_policy == crate::config::WritePolicy::Deny {
+            return Err(format!("Write denied: KB '{}' has write policy 'deny'", self.kb_name));
+        }
+
         let tool_args: MehCorrectTool = serde_json::from_value(args.clone())
             .map_err(|e| format!("Invalid params: {}", e))?;
 
@@ -533,10 +613,30 @@ impl MehMcpServer {
         let original_ulid = Ulid::from_string(ulid_str)
             .map_err(|e| format!("Invalid ULID: {}", e))?;
 
-        // Get original fact
+        // Get original fact (for path)
         let original = self.storage.get_by_id(&original_ulid)
             .map_err(|e| format!("Error: {}", e))?
             .ok_or_else(|| format!("Original fact not found: {}", tool_args.fact_id))?;
+
+        // If remote KB with "ask" policy, queue locally
+        if self.is_remote_kb && self.write_policy == crate::config::WritePolicy::Ask {
+            let queue = self.open_pending_queue()?;
+            let pending = crate::core::PendingWrite::new_correct(
+                &self.kb_name,
+                self.remote_url.as_deref().unwrap_or(""),
+                &original.path,
+                &tool_args.new_content,
+                &tool_args.fact_id,
+            );
+            let id = pending.id;
+            queue.enqueue(&pending)
+                .map_err(|e| format!("Queue error: {}", e))?;
+            
+            return Ok(format!(
+                "⏳ Queued correction for remote KB '{}' (pending approval): queue-{}\n  Will supersede: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
+                self.kb_name, id, tool_args.fact_id, id
+            ));
+        }
 
         // Create correction fact
         let title = format!("Correction: {}", original.title);
@@ -544,23 +644,44 @@ impl MehMcpServer {
         correction.supersedes = Some(original_ulid);
         correction.fact_type = crate::core::fact::FactType::Correction;
 
+        // If write policy is "ask" (local KB), set status to pending_review
+        let is_pending = self.write_policy == crate::config::WritePolicy::Ask;
+        if is_pending {
+            correction.status = crate::core::fact::Status::PendingReview;
+        }
+
         let new_id = correction.id;
 
         // Insert correction
         self.storage.insert(&correction)
             .map_err(|e| format!("Insert error: {}", e))?;
 
-        // Mark original as superseded
-        self.storage.mark_superseded(&original_ulid)
-            .map_err(|e| format!("Update error: {}", e))?;
+        // Only mark original as superseded if not pending
+        // (pending corrections don't supersede until approved)
+        if !is_pending {
+            self.storage.mark_superseded(&original_ulid)
+                .map_err(|e| format!("Update error: {}", e))?;
+        }
 
-        Ok(format!(
-            "✓ Created correction: meh-{}\n  Supersedes: {}",
-            new_id, tool_args.fact_id
-        ))
+        if is_pending {
+            Ok(format!(
+                "⏳ Created correction (pending review): meh-{}\n  Will supersede: {}\n  ℹ️ Use `meh pending approve meh-{}` to activate",
+                new_id, tool_args.fact_id, new_id
+            ))
+        } else {
+            Ok(format!(
+                "✓ Created correction: meh-{}\n  Supersedes: {}",
+                new_id, tool_args.fact_id
+            ))
+        }
     }
 
     fn do_extend(&mut self, args: &Value) -> Result<String, String> {
+        // Check write policy
+        if self.write_policy == crate::config::WritePolicy::Deny {
+            return Err(format!("Write denied: KB '{}' has write policy 'deny'", self.kb_name));
+        }
+
         let tool_args: MehExtendTool = serde_json::from_value(args.clone())
             .map_err(|e| format!("Invalid params: {}", e))?;
 
@@ -575,11 +696,37 @@ impl MehMcpServer {
             .map_err(|e| format!("Error: {}", e))?
             .ok_or_else(|| format!("Original fact not found: {}", tool_args.fact_id))?;
 
+        // If remote KB with "ask" policy, queue locally
+        if self.is_remote_kb && self.write_policy == crate::config::WritePolicy::Ask {
+            let queue = self.open_pending_queue()?;
+            let pending = crate::core::PendingWrite::new_extend(
+                &self.kb_name,
+                self.remote_url.as_deref().unwrap_or(""),
+                &original.path,
+                &tool_args.extension,
+                &tool_args.fact_id,
+            );
+            let id = pending.id;
+            queue.enqueue(&pending)
+                .map_err(|e| format!("Queue error: {}", e))?;
+            
+            return Ok(format!(
+                "⏳ Queued extension for remote KB '{}' (pending approval): queue-{}\n  Will extend: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
+                self.kb_name, id, tool_args.fact_id, id
+            ));
+        }
+
         // Create extension fact
         let title = format!("Extension: {}", original.title);
         let mut extension = Fact::new(&original.path, &title, &tool_args.extension);
         extension.extends = vec![original_ulid];
         extension.fact_type = crate::core::fact::FactType::Extension;
+
+        // If write policy is "ask" (local KB), set status to pending_review
+        let is_pending = self.write_policy == crate::config::WritePolicy::Ask;
+        if is_pending {
+            extension.status = crate::core::fact::Status::PendingReview;
+        }
 
         let new_id = extension.id;
 
@@ -587,15 +734,46 @@ impl MehMcpServer {
         self.storage.insert(&extension)
             .map_err(|e| format!("Insert error: {}", e))?;
 
-        Ok(format!(
-            "✓ Created extension: meh-{}\n  Extends: {}",
-            new_id, tool_args.fact_id
-        ))
+        if is_pending {
+            Ok(format!(
+                "⏳ Created extension (pending review): meh-{}\n  Will extend: {}\n  ℹ️ Use `meh pending approve meh-{}` to activate",
+                new_id, tool_args.fact_id, new_id
+            ))
+        } else {
+            Ok(format!(
+                "✓ Created extension: meh-{}\n  Extends: {}",
+                new_id, tool_args.fact_id
+            ))
+        }
     }
 
     fn do_deprecate(&mut self, args: &Value) -> Result<String, String> {
+        // Check write policy (deprecation is also a write operation)
+        if self.write_policy == crate::config::WritePolicy::Deny {
+            return Err(format!("Write denied: KB '{}' has write policy 'deny'", self.kb_name));
+        }
+
         let tool_args: MehDeprecateTool = serde_json::from_value(args.clone())
             .map_err(|e| format!("Invalid params: {}", e))?;
+
+        // If remote KB with "ask" policy, queue locally
+        if self.is_remote_kb && self.write_policy == crate::config::WritePolicy::Ask {
+            let queue = self.open_pending_queue()?;
+            let pending = crate::core::PendingWrite::new_deprecate(
+                &self.kb_name,
+                self.remote_url.as_deref().unwrap_or(""),
+                &tool_args.fact_id,
+                tool_args.reason.as_deref(),
+            );
+            let id = pending.id;
+            queue.enqueue(&pending)
+                .map_err(|e| format!("Queue error: {}", e))?;
+            
+            return Ok(format!(
+                "⏳ Queued deprecation for remote KB '{}' (pending approval): queue-{}\n  Fact: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
+                self.kb_name, id, tool_args.fact_id, id
+            ));
+        }
 
         // Parse fact ID
         let ulid_str = tool_args.fact_id.strip_prefix("meh-")

@@ -422,6 +422,7 @@ impl Storage {
                 "superseded" => Status::Superseded,
                 "deprecated" => Status::Deprecated,
                 "archived" => Status::Archived,
+                "pending_review" => Status::PendingReview,
                 _ => Status::Active,
             },
             fact_type: match fact_type_str.as_str() {
@@ -475,12 +476,60 @@ impl Storage {
             |row| row.get(0),
         )?;
 
+        let pending_review: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM facts WHERE status = 'pending_review'",
+            [],
+            |row| row.get(0),
+        )?;
+
         Ok(StorageStats {
             total,
             total_facts: total as usize,
             active_facts: active as usize,
             deprecated_facts: deprecated as usize,
+            pending_review_facts: pending_review as usize,
         })
+    }
+
+    /// Approve a pending_review fact (set status to active)
+    pub fn approve_fact(&self, id: &Ulid) -> Result<()> {
+        let updated = self.conn.execute(
+            "UPDATE facts SET status = 'active', updated_at = ?2 WHERE id = ?1 AND status = 'pending_review'",
+            params![id.to_string(), chrono::Utc::now().to_rfc3339()],
+        )?;
+        
+        if updated == 0 {
+            anyhow::bail!("Fact {} not found or not pending review", id);
+        }
+        Ok(())
+    }
+
+    /// Reject a pending_review fact (delete it)
+    pub fn reject_fact(&self, id: &Ulid) -> Result<()> {
+        let deleted = self.conn.execute(
+            "DELETE FROM facts WHERE id = ?1 AND status = 'pending_review'",
+            params![id.to_string()],
+        )?;
+        
+        if deleted == 0 {
+            anyhow::bail!("Fact {} not found or not pending review", id);
+        }
+        
+        // Rebuild FTS
+        self.conn.execute("INSERT INTO facts_fts(facts_fts) VALUES('rebuild')", [])?;
+        Ok(())
+    }
+
+    /// Get all pending_review facts
+    pub fn get_pending_review(&self) -> Result<Vec<Fact>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM facts WHERE status = 'pending_review' ORDER BY created_at DESC"
+        )?;
+
+        let facts = stmt.query_map([], |row| Self::row_to_fact(row))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(facts)
     }
 
     /// Garbage collect old deprecated/superseded facts
@@ -575,6 +624,7 @@ pub struct StorageStats {
     pub total_facts: usize,
     pub active_facts: usize,
     pub deprecated_facts: usize,
+    pub pending_review_facts: usize,
 }
 
 /// Result of garbage collection

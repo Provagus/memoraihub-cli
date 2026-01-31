@@ -146,6 +146,7 @@ impl TrustCalculator {
             Status::Superseded => trust = self.apply_superseded_penalty(trust),
             Status::Deprecated => trust *= 0.5,
             Status::Archived => trust *= 0.3,
+            Status::PendingReview => trust *= 0.1, // Very low trust until approved
         }
 
         // Corrections inherit less trust initially

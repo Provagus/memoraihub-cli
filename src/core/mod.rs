@@ -10,5 +10,7 @@ pub mod search;
 pub mod trust;
 pub mod multi_storage;
 pub mod notifications;
+pub mod pending_queue;
 
 pub use kb::{KnowledgeBase, KnowledgeBaseBackend, LocalKb, RemoteKb, KbStats};
+pub use pending_queue::{PendingQueue, PendingWrite, PendingWriteType};

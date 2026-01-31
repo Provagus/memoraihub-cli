@@ -39,6 +39,7 @@ async fn main() -> Result<()> {
         Commands::Config(args) => meh::cli::config::run(args),
         Commands::Context(args) => meh::cli::context::run(args),
         Commands::Notifications(args) => run_notifications(args),
+        Commands::Pending(args) => run_pending(args),
         Commands::Stats(args) => meh::cli::stats::execute(args),
         Commands::Serve(args) => run_serve(args).await,
         Commands::Kbs(args) => meh::cli::kbs::execute(args).await,
@@ -143,4 +144,9 @@ fn run_gc(args: meh::cli::gc::GcArgs) -> Result<()> {
 fn run_notifications(args: meh::cli::notifications::NotificationsArgs) -> Result<()> {
     let config = meh::config::Config::load()?;
     meh::cli::notifications::execute(args, &config)
+}
+
+fn run_pending(args: meh::cli::pending::PendingArgs) -> Result<()> {
+    let config = meh::config::Config::load()?;
+    meh::cli::pending::execute(args, &config)
 }

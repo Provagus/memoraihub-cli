@@ -65,7 +65,7 @@ impl std::str::FromStr for Source {
 
 /// Fact status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum Status {
     /// Active and current
     #[default]
@@ -76,6 +76,8 @@ pub enum Status {
     Deprecated,
     /// Archived (old, but kept)
     Archived,
+    /// Pending human review (for "ask" write policy)
+    PendingReview,
 }
 
 /// Author type

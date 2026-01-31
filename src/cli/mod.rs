@@ -15,6 +15,7 @@ pub mod gc;
 pub mod init;
 pub mod kbs;
 pub mod notifications;
+pub mod pending;
 pub mod remote_ops;
 pub mod search;
 pub mod show;
@@ -88,6 +89,9 @@ pub enum Commands {
 
     /// Manage notifications
     Notifications(notifications::NotificationsArgs),
+
+    /// Manage pending review facts (approve/reject)
+    Pending(pending::PendingArgs),
 
     /// Show database statistics
     Stats(stats::StatsArgs),

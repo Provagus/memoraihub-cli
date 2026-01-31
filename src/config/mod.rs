@@ -22,6 +22,10 @@ pub struct Config {
     
     #[serde(default)]
     pub server: ServerConfig,
+    
+    /// Knowledge base configurations
+    #[serde(default)]
+    pub kbs: KnowledgeBasesConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,6 +198,74 @@ fn default_server_timeout() -> u64 {
     30
 }
 
+/// Knowledge bases configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct KnowledgeBasesConfig {
+    /// Primary KB name (used when no --kb specified)
+    #[serde(default = "default_primary_kb")]
+    pub primary: String,
+    
+    /// Order for federated search
+    #[serde(default)]
+    pub search_order: Vec<String>,
+    
+    /// Individual KB configurations
+    #[serde(default)]
+    pub kb: Vec<KbConfig>,
+}
+
+fn default_primary_kb() -> String {
+    "local".to_string()
+}
+
+/// Single knowledge base configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KbConfig {
+    /// KB name/identifier
+    pub name: String,
+    
+    /// Type: "sqlite" or "remote"
+    #[serde(default = "default_kb_type")]
+    pub kb_type: String,
+    
+    /// Path for sqlite, URL for remote
+    #[serde(default)]
+    pub path: Option<String>,
+    
+    /// URL for remote KB
+    #[serde(default)]
+    pub url: Option<String>,
+    
+    /// Environment variable name for API key
+    #[serde(default)]
+    pub api_key_env: Option<String>,
+    
+    /// Write policy: allow, deny, ask
+    #[serde(default = "default_write_policy")]
+    pub write: WritePolicy,
+}
+
+fn default_kb_type() -> String {
+    "sqlite".to_string()
+}
+
+/// Write policy for a knowledge base
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum WritePolicy {
+    /// AI can write freely
+    #[default]
+    Allow,
+    /// AI cannot write
+    Deny,
+    /// AI writes go to pending_review, user must approve
+    Ask,
+}
+
+fn default_write_policy() -> WritePolicy {
+    WritePolicy::Allow
+}
+
 impl Config {
     /// Load config from default locations
     pub fn load() -> Result<Self> {
@@ -302,6 +374,26 @@ impl Config {
 
         // 5. Fallback to current directory
         PathBuf::from(".meh").join("data.db")
+    }
+
+    /// Get write policy for a knowledge base by name
+    /// Returns Allow if KB not found (backward compatible)
+    pub fn get_write_policy(&self, kb_name: &str) -> WritePolicy {
+        self.kbs.kb
+            .iter()
+            .find(|kb| kb.name == kb_name)
+            .map(|kb| kb.write)
+            .unwrap_or(WritePolicy::Allow)
+    }
+
+    /// Get KB config by name
+    pub fn get_kb(&self, kb_name: &str) -> Option<&KbConfig> {
+        self.kbs.kb.iter().find(|kb| kb.name == kb_name)
+    }
+
+    /// Get primary KB name
+    pub fn primary_kb(&self) -> &str {
+        &self.kbs.primary
     }
 }
 

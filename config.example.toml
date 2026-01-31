@@ -1,0 +1,82 @@
+# meh Configuration Example
+# Copy to ~/.meh/config.toml or .meh/config.toml in your project
+
+# =============================================================================
+# USER SETTINGS
+# =============================================================================
+[user]
+name = "AI"           # Author name for facts
+agent_id = ""         # Optional: unique agent identifier
+
+# =============================================================================
+# CORE SETTINGS
+# =============================================================================
+[core]
+default_source = "local"
+gc_retention_days = 30   # How long to keep deprecated/superseded facts
+gc_auto = true           # Auto-run GC on MCP server start
+
+# =============================================================================
+# SEARCH SETTINGS
+# =============================================================================
+[search]
+default_limit = 20       # Max results per search
+token_budget = 3000      # Max tokens to return
+federated_timeout_secs = 5  # Timeout for remote KB queries
+
+# =============================================================================
+# TRUST SETTINGS
+# =============================================================================
+[trust]
+default_score = 0.5      # Initial trust for new facts
+decay_rate = 0.01        # Trust decay over time
+
+# =============================================================================
+# KNOWLEDGE BASES
+# =============================================================================
+[kbs]
+primary = "local"                    # Default KB when --kb not specified
+search_order = ["local"]             # Order for federated search
+
+# --- Local SQLite KB (default) ---
+[[kbs.kb]]
+name = "local"
+kb_type = "sqlite"
+# path is auto-detected: .meh/data.db or MEH_DATABASE env var
+write = "allow"    # "allow" | "deny" | "ask"
+                   # allow = AI can write freely
+                   # deny  = AI cannot write (read-only)
+                   # ask   = AI writes go to pending_review, user must approve
+
+# --- Example: Local KB with review requirement ---
+# [[kbs.kb]]
+# name = "reviewed"
+# kb_type = "sqlite"
+# path = ".meh/reviewed.db"
+# write = "ask"
+
+# --- Example: Remote company KB ---
+# [[kbs.kb]]
+# name = "company"
+# kb_type = "remote"
+# url = "https://kb.company.com"
+# api_key_env = "MEH_COMPANY_KEY"   # Read API key from this env var
+# write = "allow"
+
+# --- Example: Public read-only KB ---
+# [[kbs.kb]]
+# name = "public"
+# kb_type = "remote"
+# url = "https://api.memoraihub.com"
+# api_key_env = "MEH_PUBLIC_KEY"
+# write = "deny"
+
+# =============================================================================
+# REMOTE SERVER (legacy, use kbs.kb instead)
+# =============================================================================
+[server]
+# url = "http://localhost:3000"
+# token = ""
+# api_key = ""
+# default_kb = ""
+# timeout_secs = 30
