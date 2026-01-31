@@ -19,6 +19,9 @@ pub struct Config {
     
     #[serde(default)]
     pub trust: TrustConfig,
+    
+    #[serde(default)]
+    pub server: ServerConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,6 +134,41 @@ fn default_trust_score() -> f32 {
 
 fn default_decay_rate() -> f32 {
     0.01
+}
+
+/// Server configuration for remote knowledge bases
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerConfig {
+    /// Server URL (e.g., "http://localhost:3000")
+    #[serde(default)]
+    pub url: Option<String>,
+    
+    /// Authentication token
+    #[serde(default)]
+    pub token: Option<String>,
+    
+    /// Default knowledge base slug
+    #[serde(default)]
+    pub default_kb: Option<String>,
+    
+    /// Connection timeout in seconds
+    #[serde(default = "default_server_timeout")]
+    pub timeout_secs: u64,
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            url: None,
+            token: None,
+            default_kb: None,
+            timeout_secs: default_server_timeout(),
+        }
+    }
+}
+
+fn default_server_timeout() -> u64 {
+    30
 }
 
 impl Config {

@@ -24,8 +24,8 @@ async fn main() -> Result<()> {
     // Run command
     match cli.command {
         Commands::Add(args) => meh::cli::add::run(args),
-        Commands::Show(args) => meh::cli::show::run(args),
-        Commands::Search(args) => meh::cli::search::run(args),
+        Commands::Show(args) => meh::cli::show::run(args).await,
+        Commands::Search(args) => meh::cli::search::run(args).await,
         Commands::Ls(args) => meh::cli::browse::run_ls(args),
         Commands::Tree(args) => meh::cli::browse::run_tree(args),
         Commands::Correct(args) => meh::cli::correct::run(args),
@@ -36,6 +36,7 @@ async fn main() -> Result<()> {
         Commands::Notifications(args) => run_notifications(args),
         Commands::Stats(args) => meh::cli::stats::execute(args),
         Commands::Serve(args) => run_serve(args).await,
+        Commands::Kbs(args) => meh::cli::kbs::execute(args).await,
     }
 }
 

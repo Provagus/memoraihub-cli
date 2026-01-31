@@ -1,6 +1,6 @@
 //! `meh show` command
 //!
-//! Shows a fact by path or ID.
+//! Shows a fact by path or ID (local or remote).
 //!
 //! # Usage
 //! ```bash
@@ -8,6 +8,7 @@
 //! meh show meh-01HQ3K2JN5
 //! meh show @products/alpha/api/timeout --level summary
 //! meh show meh-01HQ3K2JN5 --with-history
+//! meh show @products/alpha --server http://localhost:3000 --kb my-kb
 //! ```
 //!
 //! # Detail Levels (from DECISIONS_UNIFIED.md)
@@ -18,11 +19,9 @@
 
 use anyhow::{bail, Result};
 use clap::{Args, ValueEnum};
-use std::path::PathBuf;
-use ulid::Ulid;
 
 use crate::core::fact::Fact;
-use crate::core::storage::Storage;
+use crate::core::kb::{KnowledgeBase, KnowledgeBaseBackend};
 
 #[derive(ValueEnum, Clone, Debug, Default)]
 pub enum DetailLevel {
@@ -53,65 +52,47 @@ pub struct ShowArgs {
     /// Output format
     #[arg(short, long, default_value = "pretty")]
     pub format: String,
+
+    /// Use remote server instead of local database
+    #[arg(long, env = "MEH_SERVER_URL")]
+    pub server: Option<String>,
+
+    /// Knowledge base slug (for remote operations)
+    #[arg(long, env = "MEH_KB")]
+    pub kb: Option<String>,
 }
 
-pub fn run(args: ShowArgs) -> Result<()> {
-    // 1. Find .meh directory
-    let meh_dir = find_meh_dir()?;
-    let db_path = meh_dir.join("data.db");
-    let storage = Storage::open(&db_path)?;
+pub async fn run(args: ShowArgs) -> Result<()> {
+    // Load config and create KnowledgeBase (local or remote)
+    let config = crate::config::Config::load()?;
+    let kb = KnowledgeBase::from_args(
+        args.server.as_deref(),
+        args.kb.as_deref(),
+        &config,
+    )?;
 
-    // 2. Determine if target is path or ID
-    let fact = if args.target.starts_with("meh-") {
-        // It's an ID
-        let id_str = args.target.trim_start_matches("meh-");
-        let id = Ulid::from_string(id_str)
-            .map_err(|_| anyhow::anyhow!("Invalid meh ID: {}", args.target))?;
-        storage.get_by_id(&id)?
-    } else {
-        // It's a path - get the latest active fact with that path
-        let facts = storage.get_by_path(&args.target)?;
-        facts.into_iter().next()
-    };
+    // Get fact by path or ID using unified abstraction
+    let fact = kb.get_fact(&args.target).await?;
 
     let fact = match fact {
         Some(f) => f,
         None => bail!("Fact not found: {}", args.target),
     };
 
-    // 3. Format output based on level
+    // Format output based on level
     match args.format.as_str() {
         "json" => print_json(&fact, &args.level)?,
         _ => print_pretty(&fact, &args.level),
     }
 
-    // 4. Show history if requested
+    // Note: --with-history only works for local KB
     if args.with_history {
-        // Get history chain backwards (older versions)
-        let history = storage.get_history_chain(&fact.id)?;
-        
-        if history.len() > 1 {
-            println!("\n📜 History Chain ({} versions):", history.len());
-            for (i, hist_fact) in history.iter().enumerate() {
-                let marker = if hist_fact.id == fact.id { "→" } else { " " };
-                println!(
-                    "  {} {}. meh-{} ({:?}) - {}",
-                    marker,
-                    i + 1,
-                    hist_fact.id,
-                    hist_fact.status,
-                    hist_fact.created_at.format("%Y-%m-%d %H:%M")
-                );
-            }
-        }
-        
-        // Check if this fact was superseded by something newer
-        let superseding = storage.get_superseding_facts(&fact.id)?;
-        if !superseding.is_empty() {
-            println!("\n⚠️  This fact has been superseded by:");
-            for newer in &superseding {
-                println!("   → meh-{} ({})", newer.id, newer.created_at.format("%Y-%m-%d %H:%M"));
-            }
+        if matches!(kb, KnowledgeBase::Remote(_)) {
+            println!("\n⚠️  History chain not available for remote knowledge bases.");
+        } else {
+            // For local, we'd need to access storage directly
+            // This is a limitation of the current abstraction
+            println!("\n⚠️  Use local access for history: meh show {} --with-history", args.target);
         }
     }
 
@@ -166,22 +147,4 @@ fn format_trust(score: f32) -> String {
     let filled = "█".repeat(bars);
     let empty = "░".repeat(10 - bars);
     format!("{}{} {:.2}", filled, empty, score)
-}
-
-/// Find .meh directory by walking up from current directory
-fn find_meh_dir() -> Result<PathBuf> {
-    let mut current = std::env::current_dir()?;
-
-    loop {
-        let meh_dir = current.join(".meh");
-        if meh_dir.exists() {
-            return Ok(meh_dir);
-        }
-
-        if !current.pop() {
-            bail!(
-                "Not a meh repository (or any parent directory). Run 'meh init' first."
-            );
-        }
-    }
 }

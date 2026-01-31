@@ -17,8 +17,11 @@ pub mod cli;
 pub mod core;
 pub mod config;
 pub mod mcp;
+pub mod remote;
 
 pub use core::fact::Fact;
 pub use mcp::run_mcp_server;
 pub use core::path::Path;
 pub use core::storage::Storage;
+pub use core::kb::{KnowledgeBase, KnowledgeBaseBackend, LocalKb, RemoteKb, KbStats};
+pub use remote::RemoteClient;

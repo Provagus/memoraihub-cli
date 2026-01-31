@@ -11,7 +11,9 @@ pub mod correct;
 pub mod deprecate;
 pub mod extend;
 pub mod init;
+pub mod kbs;
 pub mod notifications;
+pub mod remote_ops;
 pub mod search;
 pub mod show;
 pub mod stats;
@@ -31,6 +33,14 @@ pub struct Cli {
     /// Config file path
     #[arg(short, long, global = true, env = "MEH_CONFIG")]
     pub config: Option<String>,
+    
+    /// Use remote server instead of local database
+    #[arg(long, global = true, env = "MEH_SERVER_URL")]
+    pub server: Option<String>,
+    
+    /// Knowledge base slug (for remote operations)
+    #[arg(long, global = true, env = "MEH_KB")]
+    pub kb: Option<String>,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -76,6 +86,9 @@ pub enum Commands {
 
     /// Start MCP server (for AI integration)
     Serve(serve::ServeArgs),
+    
+    /// Manage remote knowledge bases
+    Kbs(kbs::KbsArgs),
 }
 
 pub mod serve;

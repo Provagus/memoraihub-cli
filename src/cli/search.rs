@@ -1,6 +1,6 @@
 //! `meh search` command
 //!
-//! Searches facts across sources.
+//! Searches facts across sources (local or remote).
 //!
 //! # Usage
 //! ```bash
@@ -8,21 +8,22 @@
 //! meh search "timeout" --path "@products/"
 //! meh search --tags critical,api "error"
 //! meh search "@products/*/api/timeout"   # Wildcard path search
+//! meh search "query" --server http://localhost:3000 --kb my-kb  # Remote
 //! ```
 //!
 //! # Architecture
-//! - Uses FTS5 with BM25 ranking
-//! - Federated search across sources
+//! - Uses FTS5 with BM25 ranking (local)
+//! - Or HTTP API (remote)
+//! - Uses KnowledgeBase abstraction for unified access
 //! - Returns L2 Summary level by default
 //! - See `../../plan/ANALYSIS_AUTO_CONTEXT_SEARCH.md`
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::Args;
-use std::path::PathBuf;
 
 use super::show::DetailLevel;
 use crate::core::fact::Fact;
-use crate::core::storage::Storage;
+use crate::core::kb::{KnowledgeBase, KnowledgeBaseBackend};
 
 #[derive(Args, Debug)]
 pub struct SearchArgs {
@@ -68,18 +69,29 @@ pub struct SearchArgs {
     /// Output format (pretty, json, compact)
     #[arg(short, long, default_value = "pretty")]
     pub format: String,
+    
+    /// Use remote server instead of local database
+    #[arg(long, env = "MEH_SERVER_URL")]
+    pub server: Option<String>,
+    
+    /// Knowledge base slug (for remote operations)
+    #[arg(long, env = "MEH_KB")]
+    pub kb: Option<String>,
 }
 
-pub fn run(args: SearchArgs) -> Result<()> {
-    // 1. Find .meh directory
-    let meh_dir = find_meh_dir()?;
-    let db_path = meh_dir.join("data.db");
-    let storage = Storage::open(&db_path)?;
+pub async fn run(args: SearchArgs) -> Result<()> {
+    // Load config and create KnowledgeBase (local or remote)
+    let config = crate::config::Config::load()?;
+    let kb = KnowledgeBase::from_args(
+        args.server.as_deref(),
+        args.kb.as_deref(),
+        &config,
+    )?;
 
-    // 2. Execute search
-    let facts = storage.search(&args.query, args.limit as i64)?;
+    // Execute search using unified abstraction
+    let facts = kb.search(&args.query, args.limit).await?;
 
-    // 3. Apply additional filters
+    // Apply additional filters (not supported by all backends yet)
     let facts: Vec<_> = facts
         .into_iter()
         .filter(|f| {
@@ -107,7 +119,7 @@ pub fn run(args: SearchArgs) -> Result<()> {
         })
         .collect();
 
-    // 4. Output results
+    // Output results
     match args.format.as_str() {
         "json" => print_json(&facts)?,
         "compact" => print_compact(&facts),
@@ -167,22 +179,4 @@ fn print_json(facts: &[Fact]) -> Result<()> {
     let json = serde_json::to_string_pretty(facts)?;
     println!("{}", json);
     Ok(())
-}
-
-/// Find .meh directory by walking up from current directory
-fn find_meh_dir() -> Result<PathBuf> {
-    let mut current = std::env::current_dir()?;
-
-    loop {
-        let meh_dir = current.join(".meh");
-        if meh_dir.exists() {
-            return Ok(meh_dir);
-        }
-
-        if !current.pop() {
-            bail!(
-                "Not a meh repository (or any parent directory). Run 'meh init' first."
-            );
-        }
-    }
 }

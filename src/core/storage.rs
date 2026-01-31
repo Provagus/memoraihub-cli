@@ -21,6 +21,7 @@ use super::fact::{AuthorType, Fact, FactType, Status};
 /// Database storage
 pub struct Storage {
     conn: Connection,
+    path: Option<std::path::PathBuf>,
 }
 
 impl Storage {
@@ -37,7 +38,10 @@ impl Storage {
         // Enable WAL mode for better concurrent access
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")?;
 
-        let storage = Self { conn };
+        let storage = Self { 
+            conn,
+            path: Some(path.to_path_buf()),
+        };
         storage.init_schema()?;
         
         Ok(storage)
@@ -46,9 +50,18 @@ impl Storage {
     /// Open an in-memory database (for testing)
     pub fn open_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
-        let storage = Self { conn };
+        let storage = Self { conn, path: None };
         storage.init_schema()?;
         Ok(storage)
+    }
+    
+    /// Clone by opening a new connection to the same database
+    /// This is needed for async operations with spawn_blocking
+    pub fn clone_connection(&self) -> Result<Self> {
+        match &self.path {
+            Some(path) => Self::open(path),
+            None => Self::open_memory(),
+        }
     }
 
     /// Initialize database schema
