@@ -85,6 +85,36 @@ pub fn run(args: ShowArgs) -> Result<()> {
         _ => print_pretty(&fact, &args.level),
     }
 
+    // 4. Show history if requested
+    if args.with_history {
+        // Get history chain backwards (older versions)
+        let history = storage.get_history_chain(&fact.id)?;
+        
+        if history.len() > 1 {
+            println!("\n📜 History Chain ({} versions):", history.len());
+            for (i, hist_fact) in history.iter().enumerate() {
+                let marker = if hist_fact.id == fact.id { "→" } else { " " };
+                println!(
+                    "  {} {}. meh-{} ({:?}) - {}",
+                    marker,
+                    i + 1,
+                    hist_fact.id,
+                    hist_fact.status,
+                    hist_fact.created_at.format("%Y-%m-%d %H:%M")
+                );
+            }
+        }
+        
+        // Check if this fact was superseded by something newer
+        let superseding = storage.get_superseding_facts(&fact.id)?;
+        if !superseding.is_empty() {
+            println!("\n⚠️  This fact has been superseded by:");
+            for newer in &superseding {
+                println!("   → meh-{} ({})", newer.id, newer.created_at.format("%Y-%m-%d %H:%M"));
+            }
+        }
+    }
+
     Ok(())
 }
 

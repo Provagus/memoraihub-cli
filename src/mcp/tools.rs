@@ -96,3 +96,23 @@ pub struct MehDeprecateTool {
     #[serde(default)]
     pub reason: Option<String>,
 }
+
+/// Get pending notifications
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehGetNotificationsTool {
+    /// Filter by minimum priority (normal, high, critical)
+    #[serde(default)]
+    pub priority_min: Option<String>,
+    /// Maximum number of notifications (default: 10)
+    #[serde(default = "default_notif_limit")]
+    pub limit: i64,
+}
+
+fn default_notif_limit() -> i64 { 10 }
+
+/// Acknowledge notifications
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehAckNotificationsTool {
+    /// Notification IDs to acknowledge (or ["*"] for all)
+    pub notification_ids: Vec<String>,
+}

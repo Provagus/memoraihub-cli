@@ -70,13 +70,18 @@ impl JsonRpcResponse {
 struct MehMcpServer {
     storage: Storage,
     initialized: bool,
+    /// Unique session ID for this MCP connection
+    session_id: String,
 }
 
 impl MehMcpServer {
     fn new(storage: Storage) -> Self {
+        // Generate unique session ID for this MCP connection
+        let session_id = format!("mcp-{}", Ulid::new());
         Self {
             storage,
             initialized: false,
+            session_id,
         }
     }
 
@@ -222,6 +227,41 @@ impl MehMcpServer {
                         },
                         "required": ["fact_id"]
                     }
+                },
+                {
+                    "name": "meh_get_notifications",
+                    "description": "Get pending notifications about knowledge base changes. Called automatically at start of sessions.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "priority_min": { "type": "string", "enum": ["normal", "high", "critical"], "description": "Minimum priority filter" },
+                            "limit": { "type": "integer", "description": "Maximum number of notifications (default: 10)", "default": 10 }
+                        }
+                    }
+                },
+                {
+                    "name": "meh_ack_notifications",
+                    "description": "Acknowledge notifications. Use [\"*\"] to acknowledge all.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "notification_ids": { "type": "array", "items": { "type": "string" }, "description": "Notification IDs to acknowledge (or [\"*\"] for all)" }
+                        },
+                        "required": ["notification_ids"]
+                    }
+                },
+                {
+                    "name": "meh_subscribe",
+                    "description": "Subscribe to notification categories and/or path prefixes. Only receive notifications matching your subscription.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "categories": { "type": "array", "items": { "type": "string" }, "description": "Categories to subscribe to: facts, ci, security, docs, system (empty = all)" },
+                            "path_prefixes": { "type": "array", "items": { "type": "string" }, "description": "Path prefixes to subscribe to (e.g. ['@products/alpha']) (empty = all)" },
+                            "priority_min": { "type": "string", "enum": ["normal", "high", "critical"], "description": "Minimum priority to receive" },
+                            "show": { "type": "boolean", "description": "Just show current subscription without changing it", "default": false }
+                        }
+                    }
                 }
             ]
         }))
@@ -240,6 +280,9 @@ impl MehMcpServer {
             "meh_correct" => self.do_correct(arguments),
             "meh_extend" => self.do_extend(arguments),
             "meh_deprecate" => self.do_deprecate(arguments),
+            "meh_get_notifications" => self.do_get_notifications(arguments),
+            "meh_ack_notifications" => self.do_ack_notifications(arguments),
+            "meh_subscribe" => self.do_subscribe(arguments),
             _ => Err(format!("Unknown tool: {}", name)),
         };
 
@@ -268,11 +311,17 @@ impl MehMcpServer {
             .search(&tool_args.query, tool_args.limit)
             .map_err(|e| format!("Search error: {}", e))?;
 
+        // Check for pending notifications and inject at the top
+        let notification_header = self.get_notification_header();
+
         if facts.is_empty() {
-            return Ok("No facts found matching your query.".to_string());
+            let mut result = notification_header;
+            result.push_str("No facts found matching your query.");
+            return Ok(result);
         }
 
-        let mut result = format!("Found {} facts:\n\n", facts.len());
+        let mut result = notification_header;
+        result.push_str(&format!("Found {} facts:\n\n", facts.len()));
         for fact in facts {
             result.push_str(&format!(
                 "## {} ({})\n**Path:** {}\n**Trust:** {:.2}\n{}\n\n---\n\n",
@@ -284,6 +333,27 @@ impl MehMcpServer {
             ));
         }
         Ok(result)
+    }
+
+    /// Get notification header to inject in search results
+    fn get_notification_header(&self) -> String {
+        if let Ok(notif_storage) = self.open_notification_storage() {
+            let critical = notif_storage.critical_count(&self.session_id).unwrap_or(0);
+            let pending = notif_storage.pending_count(&self.session_id).unwrap_or(0);
+
+            if critical > 0 {
+                return format!(
+                    "🔴 **{} critical notification(s)!** Use `meh_get_notifications` to view.\n\n",
+                    critical
+                );
+            } else if pending > 5 {
+                return format!(
+                    "📬 {} new notification(s). Use `meh_get_notifications` to view.\n\n",
+                    pending
+                );
+            }
+        }
+        String::new()
     }
 
     fn do_get_fact(&self, args: &Value) -> Result<String, String> {
@@ -474,6 +544,174 @@ impl MehMcpServer {
             .map_err(|e| format!("Deprecate error: {}", e))?;
 
         Ok(format!("✓ Deprecated fact: {}", tool_args.fact_id))
+    }
+
+    fn do_get_notifications(&self, args: &Value) -> Result<String, String> {
+        let tool_args: MehGetNotificationsTool = serde_json::from_value(args.clone())
+            .map_err(|e| format!("Invalid params: {}", e))?;
+
+        let notif_storage = self.open_notification_storage()
+            .map_err(|e| format!("Notification storage error: {}", e))?;
+
+        // Get notifications for this session
+        let notifications = notif_storage.get_for_session(&self.session_id, tool_args.limit as usize)
+            .map_err(|e| format!("Get notifications error: {}", e))?;
+
+        // Apply additional priority filter if specified
+        let notifications: Vec<_> = if let Some(ref p) = tool_args.priority_min {
+            if let Some(min_p) = crate::core::notifications::Priority::from_str(p) {
+                notifications.into_iter().filter(|n| n.priority >= min_p).collect()
+            } else {
+                notifications
+            }
+        } else {
+            notifications
+        };
+
+        let pending_count = notif_storage.pending_count(&self.session_id)
+            .map_err(|e| format!("Count error: {}", e))?;
+
+        if notifications.is_empty() {
+            return Ok(format!("✓ No new notifications for this session (pending: {})", pending_count));
+        }
+
+        let mut output = format!("📬 {} new notification(s):\n\n", notifications.len());
+        
+        for notif in &notifications {
+            let priority_icon = match notif.priority {
+                crate::core::notifications::Priority::Critical => "🔴",
+                crate::core::notifications::Priority::High => "🟠",
+                crate::core::notifications::Priority::Normal => "🟢",
+            };
+
+            let cat_icon = match notif.category {
+                crate::core::notifications::Category::Facts => "📝",
+                crate::core::notifications::Category::Ci => "🔧",
+                crate::core::notifications::Category::Security => "🔒",
+                crate::core::notifications::Category::Docs => "📚",
+                crate::core::notifications::Category::System => "⚙️",
+                crate::core::notifications::Category::Custom(_) => "📌",
+            };
+
+            output.push_str(&format!("{} {} {} [{}]\n", priority_icon, cat_icon, notif.title, notif.category.as_str()));
+            output.push_str(&format!("   {}\n", notif.summary));
+            if let Some(path) = &notif.path {
+                output.push_str(&format!("   📁 {}\n", path));
+            }
+            output.push_str(&format!("   ID: meh-{}\n\n", notif.id));
+        }
+
+        // Auto-mark as seen
+        if let Some(last) = notifications.last() {
+            let _ = notif_storage.mark_seen(&self.session_id, &last.id);
+        }
+
+        output.push_str(&format!("Session: {} | Pending: {}", self.session_id, pending_count));
+        Ok(output)
+    }
+
+    fn do_ack_notifications(&self, args: &Value) -> Result<String, String> {
+        let tool_args: MehAckNotificationsTool = serde_json::from_value(args.clone())
+            .map_err(|e| format!("Invalid params: {}", e))?;
+
+        let notif_storage = self.open_notification_storage()
+            .map_err(|e| format!("Notification storage error: {}", e))?;
+
+        // Check for "*" meaning all
+        if tool_args.notification_ids.len() == 1 && tool_args.notification_ids[0] == "*" {
+            let count = notif_storage.acknowledge_all(&self.session_id)
+                .map_err(|e| format!("Ack error: {}", e))?;
+            return Ok(format!("✓ Acknowledged {} notification(s) for session {}", count, self.session_id));
+        }
+
+        // For specific IDs, mark up to the last one as seen
+        if let Some(last_id) = tool_args.notification_ids.last() {
+            let ulid_str = last_id.strip_prefix("meh-").unwrap_or(last_id);
+            if let Ok(ulid) = Ulid::from_string(ulid_str) {
+                notif_storage.mark_seen(&self.session_id, &ulid)
+                    .map_err(|e| format!("Mark seen error: {}", e))?;
+            }
+        }
+
+        Ok(format!("✓ Marked {} notification(s) as seen", tool_args.notification_ids.len()))
+    }
+
+    fn do_subscribe(&self, args: &Value) -> Result<String, String> {
+        let show = args["show"].as_bool().unwrap_or(false);
+        
+        let notif_storage = self.open_notification_storage()
+            .map_err(|e| format!("Notification storage error: {}", e))?;
+
+        if show {
+            let (_, sub) = notif_storage.get_or_create_session(&self.session_id)
+                .map_err(|e| format!("Session error: {}", e))?;
+            
+            let cats: Vec<&str> = sub.categories.iter().map(|c| c.as_str()).collect();
+            let cats_str = if cats.is_empty() { "all".to_string() } else { cats.join(", ") };
+            let paths_str = if sub.path_prefixes.is_empty() { "all".to_string() } else { sub.path_prefixes.join(", ") };
+            let priority_str = sub.priority_min.map(|p| p.as_str().to_string()).unwrap_or_else(|| "all".to_string());
+            
+            return Ok(format!(
+                "📋 Current subscription for session {}:\n   Categories: {}\n   Paths: {}\n   Min priority: {}",
+                self.session_id, cats_str, paths_str, priority_str
+            ));
+        }
+
+        // Build subscription from args
+        let mut sub = crate::core::notifications::Subscription::default();
+
+        if let Some(cats) = args["categories"].as_array() {
+            let cat_list: Vec<crate::core::notifications::Category> = cats
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(crate::core::notifications::Category::from_str)
+                .collect();
+            sub = sub.categories(cat_list);
+        }
+
+        if let Some(paths) = args["path_prefixes"].as_array() {
+            let path_list: Vec<String> = paths
+                .iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect();
+            sub = sub.paths(path_list);
+        }
+
+        if let Some(p) = args["priority_min"].as_str() {
+            if let Some(prio) = crate::core::notifications::Priority::from_str(p) {
+                sub = sub.priority_min(prio);
+            }
+        }
+
+        notif_storage.update_subscription(&self.session_id, &sub)
+            .map_err(|e| format!("Update subscription error: {}", e))?;
+
+        let cats: Vec<&str> = sub.categories.iter().map(|c| c.as_str()).collect();
+        let cats_str = if cats.is_empty() { "all".to_string() } else { cats.join(", ") };
+        let paths_str = if sub.path_prefixes.is_empty() { "all".to_string() } else { sub.path_prefixes.join(", ") };
+        let priority_str = sub.priority_min.map(|p| p.as_str().to_string()).unwrap_or_else(|| "all".to_string());
+
+        Ok(format!(
+            "✓ Subscription updated for session {}:\n   Categories: {}\n   Paths: {}\n   Min priority: {}",
+            self.session_id, cats_str, paths_str, priority_str
+        ))
+    }
+
+    fn open_notification_storage(&self) -> anyhow::Result<crate::core::notifications::NotificationStorage> {
+        // Use same directory as main storage - derive from env or default
+        let db_path = if let Ok(env_path) = std::env::var("MEH_DATABASE") {
+            std::path::PathBuf::from(env_path)
+        } else {
+            crate::config::Config::load()
+                .map(|c| c.data_dir())
+                .unwrap_or_else(|_| std::path::PathBuf::from(".meh/data.db"))
+        };
+
+        let notif_path = db_path.parent()
+            .map(|p| p.join("notifications.db"))
+            .unwrap_or_else(|| db_path.with_extension("notifications.db"));
+
+        crate::core::notifications::NotificationStorage::open(&notif_path)
     }
 }
 

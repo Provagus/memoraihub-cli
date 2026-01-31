@@ -33,6 +33,8 @@ async fn main() -> Result<()> {
         Commands::Deprecate(args) => meh::cli::deprecate::run(args),
         Commands::Init(args) => meh::cli::init::run(args),
         Commands::Config(args) => meh::cli::config::run(args),
+        Commands::Notifications(args) => run_notifications(args),
+        Commands::Stats(args) => meh::cli::stats::execute(args),
         Commands::Serve(args) => run_serve(args).await,
     }
 }
@@ -82,4 +84,8 @@ async fn run_serve(args: meh::cli::serve::ServeArgs) -> Result<()> {
     }
 
     Ok(())
+}
+fn run_notifications(args: meh::cli::notifications::NotificationsArgs) -> Result<()> {
+    let config = meh::config::Config::load()?;
+    meh::cli::notifications::execute(args, &config)
 }

@@ -199,13 +199,17 @@ impl Storage {
     /// List child paths (for browse/ls) with pagination
     /// Returns (paths, has_more) tuple
     pub fn list_children(&self, parent: &str, limit: i64, cursor: Option<&str>) -> Result<(Vec<PathInfo>, bool)> {
-        let prefix = if parent.is_empty() || parent == "/" {
-            String::new()
+        // Handle root "@" specially - it matches all paths starting with "@"
+        // For "@meh", we want to find children like "@meh/architecture"
+        let (prefix, pattern) = if parent.is_empty() || parent == "/" || parent == "@" {
+            // Root: match all paths starting with @, group by first segment
+            ("@".to_string(), "@%".to_string())
         } else {
-            format!("{}/", parent.trim_end_matches('/'))
+            // Non-root: match paths that start with parent + "/"
+            let p = format!("{}/", parent.trim_end_matches('/'));
+            let pat = format!("{}%", p);
+            (p, pat)
         };
-
-        let pattern = format!("{}%", prefix);
         let cursor_path = cursor.unwrap_or("");
         
         // Fetch limit+1 to know if there are more results
@@ -309,6 +313,57 @@ impl Storage {
         Ok(())
     }
 
+    /// Get history chain for a fact (follow supersedes backwards)
+    /// Returns list of facts from oldest to newest
+    pub fn get_history_chain(&self, id: &Ulid) -> Result<Vec<Fact>> {
+        let mut chain = Vec::new();
+        let mut current_id = Some(*id);
+        
+        // First, find the current fact and follow supersedes backwards
+        while let Some(id) = current_id {
+            if let Some(fact) = self.get_by_id(&id)? {
+                chain.push(fact.clone());
+                current_id = fact.supersedes;
+            } else {
+                break;
+            }
+        }
+        
+        // Reverse to get oldest first
+        chain.reverse();
+        Ok(chain)
+    }
+
+    /// Get all facts that supersede a given fact (follow supersedes forward)
+    /// Returns list of facts from oldest to newest
+    pub fn get_superseding_facts(&self, id: &Ulid) -> Result<Vec<Fact>> {
+        let mut chain = Vec::new();
+        
+        // Find facts where supersedes = current id
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM facts WHERE supersedes = ?1"
+        )?;
+        
+        let mut current_facts: Vec<Fact> = stmt
+            .query_map([id.to_string()], |row| Self::row_to_fact(row))?
+            .filter_map(|r| r.ok())
+            .collect();
+        
+        while !current_facts.is_empty() {
+            // Take first (should only be one in proper chain)
+            let fact = current_facts.remove(0);
+            let next_id = fact.id;
+            chain.push(fact);
+            
+            // Find next
+            current_facts = stmt
+                .query_map([next_id.to_string()], |row| Self::row_to_fact(row))?
+                .filter_map(|r| r.ok())
+                .collect();
+        }
+        
+        Ok(chain)
+    }
     /// Convert a database row to a Fact
     fn row_to_fact(row: &rusqlite::Row) -> rusqlite::Result<Fact> {
         let id_str: String = row.get("id")?;

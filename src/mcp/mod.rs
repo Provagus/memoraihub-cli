@@ -10,6 +10,9 @@
 //! - `meh_correct` - Correct existing fact
 //! - `meh_extend` - Extend existing fact
 //! - `meh_deprecate` - Deprecate fact
+//! - `meh_get_notifications` - Get pending notifications (per session)
+//! - `meh_ack_notifications` - Acknowledge notifications
+//! - `meh_subscribe` - Subscribe to categories/paths
 
 mod server;
 mod tools;

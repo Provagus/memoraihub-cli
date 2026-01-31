@@ -11,8 +11,10 @@ pub mod correct;
 pub mod deprecate;
 pub mod extend;
 pub mod init;
+pub mod notifications;
 pub mod search;
 pub mod show;
+pub mod stats;
 
 /// meh - AI Knowledge Management CLI
 ///
@@ -65,6 +67,12 @@ pub enum Commands {
 
     /// Get or set configuration
     Config(config::ConfigArgs),
+
+    /// Manage notifications
+    Notifications(notifications::NotificationsArgs),
+
+    /// Show database statistics
+    Stats(stats::StatsArgs),
 
     /// Start MCP server (for AI integration)
     Serve(serve::ServeArgs),
