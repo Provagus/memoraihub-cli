@@ -107,10 +107,8 @@ pub fn search(storage: &Storage, query: &SearchQuery) -> Result<Vec<SearchResult
             }
 
             // Apply tag filter
-            if !query.tags.is_empty() {
-                if !query.tags.iter().all(|t| f.tags.contains(t)) {
-                    return false;
-                }
+            if !query.tags.is_empty() && !query.tags.iter().all(|t| f.tags.contains(t)) {
+                return false;
             }
 
             true

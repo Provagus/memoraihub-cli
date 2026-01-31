@@ -73,7 +73,7 @@ impl MultiStorage {
             let entry = entry?;
             let path = entry.path();
 
-            if path.extension().map_or(false, |ext| ext == "db") {
+            if path.extension().is_some_and(|ext| ext == "db") {
                 let name = path
                     .file_stem()
                     .and_then(|s| s.to_str())

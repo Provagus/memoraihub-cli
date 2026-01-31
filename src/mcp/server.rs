@@ -860,7 +860,7 @@ impl MehMcpServer {
 
         // Apply additional priority filter if specified
         let notifications: Vec<_> = if let Some(ref p) = tool_args.priority_min {
-            if let Some(min_p) = crate::core::notifications::Priority::from_str(p) {
+            if let Some(min_p) = crate::core::notifications::Priority::parse_str(p) {
                 notifications
                     .into_iter()
                     .filter(|n| n.priority >= min_p)
@@ -1003,7 +1003,7 @@ impl MehMcpServer {
             let cat_list: Vec<crate::core::notifications::Category> = cats
                 .iter()
                 .filter_map(|v| v.as_str())
-                .map(crate::core::notifications::Category::from_str)
+                .map(crate::core::notifications::Category::parse_str)
                 .collect();
             sub = sub.categories(cat_list);
         }
@@ -1017,7 +1017,7 @@ impl MehMcpServer {
         }
 
         if let Some(p) = args["priority_min"].as_str() {
-            if let Some(prio) = crate::core::notifications::Priority::from_str(p) {
+            if let Some(prio) = crate::core::notifications::Priority::parse_str(p) {
                 sub = sub.priority_min(prio);
             }
         }

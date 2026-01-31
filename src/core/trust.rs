@@ -99,7 +99,7 @@ impl TrustCalculator {
             Source::Npm => self.config.source_npm,
         };
 
-        (base * source_mult).min(1.0).max(0.0)
+        (base * source_mult).clamp(0.0, 1.0)
     }
 
     /// Calculate trust decay based on age
@@ -159,7 +159,7 @@ impl TrustCalculator {
             trust = self.apply_confirmation_boost(trust);
         }
 
-        trust.min(1.0).max(0.0)
+        trust.clamp(0.0, 1.0)
     }
 }
 

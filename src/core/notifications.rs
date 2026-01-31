@@ -33,7 +33,7 @@ impl Priority {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "normal" => Some(Priority::Normal),
             "high" => Some(Priority::High),
@@ -78,7 +78,7 @@ impl Category {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "facts" => Category::Facts,
             "ci" => Category::Ci,
@@ -125,7 +125,7 @@ impl NotificationType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "new_fact" => Some(NotificationType::NewFact),
             "correction" => Some(NotificationType::Correction),
@@ -267,7 +267,7 @@ impl Notification {
 }
 
 /// Session subscription - what a session wants to receive
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Subscription {
     /// Categories to subscribe to (empty = all)
     pub categories: Vec<Category>,
@@ -275,16 +275,6 @@ pub struct Subscription {
     pub path_prefixes: Vec<String>,
     /// Minimum priority (None = all)
     pub priority_min: Option<Priority>,
-}
-
-impl Default for Subscription {
-    fn default() -> Self {
-        Self {
-            categories: vec![],
-            path_prefixes: vec![],
-            priority_min: None,
-        }
-    }
 }
 
 impl Subscription {
@@ -362,7 +352,7 @@ impl Subscription {
             .as_array()
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|v| v.as_str().map(Category::from_str))
+                    .filter_map(|v| v.as_str().map(Category::parse_str))
                     .collect()
             })
             .unwrap_or_default();
@@ -376,7 +366,7 @@ impl Subscription {
             })
             .unwrap_or_default();
 
-        let priority_min = v["priority_min"].as_str().and_then(Priority::from_str);
+        let priority_min = v["priority_min"].as_str().and_then(Priority::parse_str);
 
         Ok(Self {
             categories,
@@ -771,7 +761,7 @@ impl NotificationStorage {
             rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
         })?;
 
-        let category = Category::from_str(&category_str);
+        let category = Category::parse_str(&category_str);
 
         let priority = match priority_int {
             0 => Priority::Normal,
@@ -780,7 +770,7 @@ impl NotificationStorage {
         };
 
         let notification_type =
-            NotificationType::from_str(&type_str).unwrap_or(NotificationType::Alert);
+            NotificationType::parse_str(&type_str).unwrap_or(NotificationType::Alert);
 
         let fact_id = fact_id_str.and_then(|s| Ulid::from_string(&s).ok());
 

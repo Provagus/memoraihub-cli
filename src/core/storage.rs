@@ -170,7 +170,7 @@ impl Storage {
     pub fn get_by_id(&self, id: &Ulid) -> Result<Option<Fact>> {
         let mut stmt = self.conn.prepare("SELECT * FROM facts WHERE id = ?1")?;
 
-        let result = stmt.query_row([id.to_string()], |row| Self::row_to_fact(row));
+        let result = stmt.query_row([id.to_string()], Self::row_to_fact);
 
         match result {
             Ok(fact) => Ok(Some(fact)),
@@ -186,7 +186,7 @@ impl Storage {
         )?;
 
         let facts = stmt
-            .query_map([path], |row| Self::row_to_fact(row))?
+            .query_map([path], Self::row_to_fact)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(facts)
@@ -201,7 +201,7 @@ impl Storage {
         )?;
 
         let facts = stmt
-            .query_map([pattern], |row| Self::row_to_fact(row))?
+            .query_map([pattern], Self::row_to_fact)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(facts)
@@ -381,7 +381,7 @@ impl Storage {
             .prepare("SELECT * FROM facts WHERE supersedes = ?1")?;
 
         let mut current_facts: Vec<Fact> = stmt
-            .query_map([id.to_string()], |row| Self::row_to_fact(row))?
+            .query_map([id.to_string()], Self::row_to_fact)?
             .filter_map(|r| r.ok())
             .collect();
 
@@ -393,7 +393,7 @@ impl Storage {
 
             // Find next
             current_facts = stmt
-                .query_map([next_id.to_string()], |row| Self::row_to_fact(row))?
+                .query_map([next_id.to_string()], Self::row_to_fact)?
                 .filter_map(|r| r.ok())
                 .collect();
         }
@@ -533,7 +533,7 @@ impl Storage {
         )?;
 
         let facts = stmt
-            .query_map([], |row| Self::row_to_fact(row))?
+            .query_map([], Self::row_to_fact)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(facts)

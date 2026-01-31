@@ -126,7 +126,7 @@ fn execute_list(storage: &NotificationStorage, args: NotificationsArgs) -> Resul
             }
             // Priority filter
             if let Some(ref p) = args.priority {
-                if let Some(min_p) = Priority::from_str(p) {
+                if let Some(min_p) = Priority::parse_str(p) {
                     if n.priority < min_p {
                         return false;
                     }
@@ -324,7 +324,7 @@ fn execute_subscribe(
     if let Some(cats) = categories {
         let cat_list: Vec<Category> = cats
             .split(',')
-            .map(|s| Category::from_str(s.trim()))
+            .map(|s| Category::parse_str(s.trim()))
             .collect();
         sub = sub.categories(cat_list);
     }
@@ -335,7 +335,7 @@ fn execute_subscribe(
     }
 
     if let Some(p) = priority {
-        if let Some(prio) = Priority::from_str(&p) {
+        if let Some(prio) = Priority::parse_str(&p) {
             sub = sub.priority_min(prio);
         }
     }

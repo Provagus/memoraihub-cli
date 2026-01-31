@@ -19,10 +19,11 @@ use ulid::Ulid;
 use super::trust::TrustCalculator;
 
 /// Source type for facts
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Source {
     /// Local storage (your machine)
+    #[default]
     Local,
     /// Company server
     Company,
@@ -30,12 +31,6 @@ pub enum Source {
     Global,
     /// Third-party packages (npm, etc.)
     Npm,
-}
-
-impl Default for Source {
-    fn default() -> Self {
-        Source::Local
-    }
 }
 
 impl std::fmt::Display for Source {
@@ -81,18 +76,13 @@ pub enum Status {
 }
 
 /// Author type
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum AuthorType {
     Human,
+    #[default]
     Ai,
     System,
-}
-
-impl Default for AuthorType {
-    fn default() -> Self {
-        AuthorType::Ai
-    }
 }
 
 /// Fact type (for append-only operations)
@@ -311,7 +301,7 @@ impl Fact {
         let content = self.content.trim();
 
         // Try to find first sentence
-        if let Some(end) = content.find(|c| c == '.' || c == '!' || c == '?') {
+        if let Some(end) = content.find(['.', '!', '?']) {
             if end < max_chars {
                 self.summary = Some(content[..=end].to_string());
                 return;

@@ -107,7 +107,7 @@ impl PendingWrite {
             write_type: PendingWriteType::Correct,
             path: path.to_string(),
             content: content.to_string(),
-            title: Some(format!("Correction")),
+            title: Some("Correction".to_string()),
             tags: vec![],
             supersedes: Some(supersedes.to_string()),
             extends: None,
@@ -130,7 +130,7 @@ impl PendingWrite {
             write_type: PendingWriteType::Extend,
             path: path.to_string(),
             content: content.to_string(),
-            title: Some(format!("Extension")),
+            title: Some("Extension".to_string()),
             tags: vec![],
             supersedes: None,
             extends: Some(extends.to_string()),
@@ -249,7 +249,7 @@ impl PendingQueue {
             .conn
             .prepare("SELECT * FROM pending_writes WHERE id = ?1")?;
 
-        let result = stmt.query_row([id.to_string()], |row| Self::row_to_pending_write(row));
+        let result = stmt.query_row([id.to_string()], Self::row_to_pending_write);
 
         match result {
             Ok(write) => Ok(Some(write)),
@@ -265,7 +265,7 @@ impl PendingQueue {
             .prepare("SELECT * FROM pending_writes ORDER BY created_at DESC")?;
 
         let writes = stmt
-            .query_map([], |row| Self::row_to_pending_write(row))?
+            .query_map([], Self::row_to_pending_write)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(writes)
@@ -278,7 +278,7 @@ impl PendingQueue {
         )?;
 
         let writes = stmt
-            .query_map([kb_name], |row| Self::row_to_pending_write(row))?
+            .query_map([kb_name], Self::row_to_pending_write)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(writes)
