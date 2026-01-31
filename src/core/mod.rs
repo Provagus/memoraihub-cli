@@ -6,3 +6,4 @@ pub mod fact;
 pub mod path;
 pub mod storage;
 pub mod search;
+pub mod trust;

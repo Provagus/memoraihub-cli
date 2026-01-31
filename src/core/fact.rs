@@ -16,6 +16,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
+use super::trust::TrustCalculator;
+
 /// Source type for facts
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -183,9 +185,12 @@ fn default_trust() -> f32 {
 }
 
 impl Fact {
-    /// Create a new fact
+    /// Create a new fact with calculated initial trust
     pub fn new(path: impl Into<String>, title: impl Into<String>, content: impl Into<String>) -> Self {
         let now = Utc::now();
+        let calc = TrustCalculator::new();
+        let initial_trust = calc.initial_trust(AuthorType::default(), Source::default());
+        
         Self {
             id: Ulid::new(),
             path: path.into(),
@@ -195,7 +200,7 @@ impl Fact {
             tags: Vec::new(),
             source: Source::default(),
             namespace: String::new(),
-            trust_score: 0.5,
+            trust_score: initial_trust,
             status: Status::default(),
             fact_type: FactType::default(),
             supersedes: None,
@@ -206,6 +211,53 @@ impl Fact {
             updated_at: now,
             accessed_at: None,
         }
+    }
+
+    /// Create a new fact with specific author (calculates trust based on author type)
+    pub fn new_with_author(
+        path: impl Into<String>,
+        title: impl Into<String>,
+        content: impl Into<String>,
+        author_type: AuthorType,
+        author_id: impl Into<String>,
+    ) -> Self {
+        let now = Utc::now();
+        let calc = TrustCalculator::new();
+        let initial_trust = calc.initial_trust(author_type, Source::default());
+        
+        Self {
+            id: Ulid::new(),
+            path: path.into(),
+            title: title.into(),
+            content: content.into(),
+            summary: None,
+            tags: Vec::new(),
+            source: Source::default(),
+            namespace: String::new(),
+            trust_score: initial_trust,
+            status: Status::default(),
+            fact_type: FactType::default(),
+            supersedes: None,
+            extends: Vec::new(),
+            author_type,
+            author_id: author_id.into(),
+            created_at: now,
+            updated_at: now,
+            accessed_at: None,
+        }
+    }
+
+    /// Recalculate trust score based on current state
+    pub fn recalculate_trust(&mut self, confirmation_count: u32) {
+        let calc = TrustCalculator::new();
+        let base_trust = calc.initial_trust(self.author_type, self.source);
+        self.trust_score = calc.effective_trust(
+            base_trust,
+            self.created_at,
+            self.status,
+            self.fact_type,
+            confirmation_count,
+        );
     }
 
     /// Create a correction of another fact

@@ -193,4 +193,4 @@ Binary will be at `target/release/meh.exe` (Windows) or `target/release/meh` (Un
 
 ## License
 
-MIT
+Apache-2.0
