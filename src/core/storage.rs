@@ -38,12 +38,12 @@ impl Storage {
         // Enable WAL mode for better concurrent access
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")?;
 
-        let storage = Self { 
+        let storage = Self {
             conn,
             path: Some(path.to_path_buf()),
         };
         storage.init_schema()?;
-        
+
         Ok(storage)
     }
 
@@ -54,7 +54,7 @@ impl Storage {
         storage.init_schema()?;
         Ok(storage)
     }
-    
+
     /// Clone by opening a new connection to the same database
     /// This is needed for async operations with spawn_blocking
     pub fn clone_connection(&self) -> Result<Self> {
@@ -168,13 +168,9 @@ impl Storage {
 
     /// Get a fact by ID
     pub fn get_by_id(&self, id: &Ulid) -> Result<Option<Fact>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT * FROM facts WHERE id = ?1"
-        )?;
+        let mut stmt = self.conn.prepare("SELECT * FROM facts WHERE id = ?1")?;
 
-        let result = stmt.query_row([id.to_string()], |row| {
-            Self::row_to_fact(row)
-        });
+        let result = stmt.query_row([id.to_string()], |row| Self::row_to_fact(row));
 
         match result {
             Ok(fact) => Ok(Some(fact)),
@@ -186,10 +182,11 @@ impl Storage {
     /// Get facts by path (exact match)
     pub fn get_by_path(&self, path: &str) -> Result<Vec<Fact>> {
         let mut stmt = self.conn.prepare(
-            "SELECT * FROM facts WHERE path = ?1 AND status = 'active' ORDER BY created_at DESC"
+            "SELECT * FROM facts WHERE path = ?1 AND status = 'active' ORDER BY created_at DESC",
         )?;
 
-        let facts = stmt.query_map([path], |row| Self::row_to_fact(row))?
+        let facts = stmt
+            .query_map([path], |row| Self::row_to_fact(row))?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(facts)
@@ -198,12 +195,13 @@ impl Storage {
     /// Get facts by path prefix
     pub fn get_by_path_prefix(&self, prefix: &str) -> Result<Vec<Fact>> {
         let pattern = format!("{}%", prefix.trim_end_matches('/'));
-        
+
         let mut stmt = self.conn.prepare(
             "SELECT * FROM facts WHERE path LIKE ?1 AND status = 'active' ORDER BY path, created_at DESC"
         )?;
 
-        let facts = stmt.query_map([pattern], |row| Self::row_to_fact(row))?
+        let facts = stmt
+            .query_map([pattern], |row| Self::row_to_fact(row))?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(facts)
@@ -211,7 +209,12 @@ impl Storage {
 
     /// List child paths (for browse/ls) with pagination
     /// Returns (paths, has_more) tuple
-    pub fn list_children(&self, parent: &str, limit: i64, cursor: Option<&str>) -> Result<(Vec<PathInfo>, bool)> {
+    pub fn list_children(
+        &self,
+        parent: &str,
+        limit: i64,
+        cursor: Option<&str>,
+    ) -> Result<(Vec<PathInfo>, bool)> {
         // Handle root "@" specially - it matches all paths starting with "@"
         // For "@meh", we want to find children like "@meh/architecture"
         let (prefix, pattern) = if parent.is_empty() || parent == "/" || parent == "@" {
@@ -224,10 +227,10 @@ impl Storage {
             (p, pat)
         };
         let cursor_path = cursor.unwrap_or("");
-        
+
         // Fetch limit+1 to know if there are more results
         let fetch_limit = limit + 1;
-        
+
         let mut stmt = self.conn.prepare(
             r#"
             SELECT 
@@ -252,16 +255,17 @@ impl Storage {
             "#
         )?;
 
-        let mut results: Vec<PathInfo> = stmt.query_map(
-            rusqlite::params![&pattern, &prefix, cursor_path, fetch_limit],
-            |row| {
-                Ok(PathInfo {
-                    path: row.get(0)?,
-                    fact_count: row.get::<_, i64>(1)? as usize,
-                })
-            }
-        )?
-        .collect::<Result<Vec<_>, _>>()?;
+        let mut results: Vec<PathInfo> = stmt
+            .query_map(
+                rusqlite::params![&pattern, &prefix, cursor_path, fetch_limit],
+                |row| {
+                    Ok(PathInfo {
+                        path: row.get(0)?,
+                        fact_count: row.get::<_, i64>(1)? as usize,
+                    })
+                },
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
 
         // Check if there are more results
         let has_more = results.len() > limit as usize;
@@ -292,11 +296,11 @@ impl Storage {
                 format!("\"{}\"", escaped)
             })
             .collect();
-        
+
         if words.is_empty() {
             return String::new();
         }
-        
+
         // Join with OR - finds documents with ANY of the words
         // This is more forgiving for natural language queries from AI
         words.join(" OR ")
@@ -305,7 +309,7 @@ impl Storage {
     /// Full-text search
     pub fn search(&self, query: &str, limit: i64) -> Result<Vec<Fact>> {
         let fts_query = Self::escape_fts_query(query);
-        
+
         let mut stmt = self.conn.prepare(
             r#"
             SELECT f.* 
@@ -314,10 +318,13 @@ impl Storage {
             WHERE facts_fts MATCH ?1 AND f.status = 'active'
             ORDER BY bm25(facts_fts, 0, 10.0, 5.0, 1.0, 1.0, 1.0)
             LIMIT ?2
-            "#
+            "#,
         )?;
 
-        let facts = stmt.query_map(params![fts_query, limit as i32], |row| Self::row_to_fact(row))?
+        let facts = stmt
+            .query_map(params![fts_query, limit as i32], |row| {
+                Self::row_to_fact(row)
+            })?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(facts)
@@ -347,7 +354,7 @@ impl Storage {
     pub fn get_history_chain(&self, id: &Ulid) -> Result<Vec<Fact>> {
         let mut chain = Vec::new();
         let mut current_id = Some(*id);
-        
+
         // First, find the current fact and follow supersedes backwards
         while let Some(id) = current_id {
             if let Some(fact) = self.get_by_id(&id)? {
@@ -357,7 +364,7 @@ impl Storage {
                 break;
             }
         }
-        
+
         // Reverse to get oldest first
         chain.reverse();
         Ok(chain)
@@ -367,30 +374,30 @@ impl Storage {
     /// Returns list of facts from oldest to newest
     pub fn get_superseding_facts(&self, id: &Ulid) -> Result<Vec<Fact>> {
         let mut chain = Vec::new();
-        
+
         // Find facts where supersedes = current id
-        let mut stmt = self.conn.prepare(
-            "SELECT * FROM facts WHERE supersedes = ?1"
-        )?;
-        
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM facts WHERE supersedes = ?1")?;
+
         let mut current_facts: Vec<Fact> = stmt
             .query_map([id.to_string()], |row| Self::row_to_fact(row))?
             .filter_map(|r| r.ok())
             .collect();
-        
+
         while !current_facts.is_empty() {
             // Take first (should only be one in proper chain)
             let fact = current_facts.remove(0);
             let next_id = fact.id;
             chain.push(fact);
-            
+
             // Find next
             current_facts = stmt
                 .query_map([next_id.to_string()], |row| Self::row_to_fact(row))?
                 .filter_map(|r| r.ok())
                 .collect();
         }
-        
+
         Ok(chain)
     }
     /// Convert a database row to a Fact
@@ -458,11 +465,9 @@ impl Storage {
 
     /// Get database statistics
     pub fn stats(&self) -> Result<StorageStats> {
-        let total: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM facts",
-            [],
-            |row| row.get(0),
-        )?;
+        let total: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM facts", [], |row| row.get(0))?;
 
         let active: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM facts WHERE status = 'active'",
@@ -497,7 +502,7 @@ impl Storage {
             "UPDATE facts SET status = 'active', updated_at = ?2 WHERE id = ?1 AND status = 'pending_review'",
             params![id.to_string(), chrono::Utc::now().to_rfc3339()],
         )?;
-        
+
         if updated == 0 {
             anyhow::bail!("Fact {} not found or not pending review", id);
         }
@@ -510,38 +515,40 @@ impl Storage {
             "DELETE FROM facts WHERE id = ?1 AND status = 'pending_review'",
             params![id.to_string()],
         )?;
-        
+
         if deleted == 0 {
             anyhow::bail!("Fact {} not found or not pending review", id);
         }
-        
+
         // Rebuild FTS
-        self.conn.execute("INSERT INTO facts_fts(facts_fts) VALUES('rebuild')", [])?;
+        self.conn
+            .execute("INSERT INTO facts_fts(facts_fts) VALUES('rebuild')", [])?;
         Ok(())
     }
 
     /// Get all pending_review facts
     pub fn get_pending_review(&self) -> Result<Vec<Fact>> {
         let mut stmt = self.conn.prepare(
-            "SELECT * FROM facts WHERE status = 'pending_review' ORDER BY created_at DESC"
+            "SELECT * FROM facts WHERE status = 'pending_review' ORDER BY created_at DESC",
         )?;
 
-        let facts = stmt.query_map([], |row| Self::row_to_fact(row))?
+        let facts = stmt
+            .query_map([], |row| Self::row_to_fact(row))?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(facts)
     }
 
     /// Garbage collect old deprecated/superseded facts
-    /// 
+    ///
     /// Removes facts that are:
     /// - status = 'deprecated' AND updated_at older than retention_days
     /// - superseded_by IS NOT NULL (someone created a correction) AND updated_at older than retention_days
-    /// 
+    ///
     /// # Arguments
     /// * `retention_days` - How many days to keep deprecated facts (default: 30)
     /// * `dry_run` - If true, only return candidates without deleting
-    /// 
+    ///
     /// # Returns
     /// GcResult with count of deleted facts and list of candidates
     pub fn garbage_collect(&self, retention_days: u32, dry_run: bool) -> Result<GcResult> {
@@ -562,7 +569,7 @@ impl Storage {
             ))
             AND updated_at < ?1
             ORDER BY updated_at ASC
-            "#
+            "#,
         )?;
 
         let candidates: Vec<GcCandidate> = stmt
@@ -601,7 +608,8 @@ impl Storage {
         )?;
 
         // Rebuild FTS index after deletion
-        self.conn.execute("INSERT INTO facts_fts(facts_fts) VALUES('rebuild')", [])?;
+        self.conn
+            .execute("INSERT INTO facts_fts(facts_fts) VALUES('rebuild')", [])?;
 
         Ok(GcResult {
             deleted_count,
@@ -762,7 +770,7 @@ mod tests {
         // Recent should still exist (check by ID since search filters by status)
         let remaining = storage.get_by_id(&recent.id)?;
         assert!(remaining.is_some());
-        
+
         // Old should be gone
         let deleted = storage.get_by_id(&old.id)?;
         assert!(deleted.is_none());

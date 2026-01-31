@@ -3,14 +3,14 @@
 //! Implements the Model Context Protocol (JSON-RPC 2.0) server directly
 //! without external SDK dependencies.
 
-use std::io::{BufRead, BufReader, Write};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::io::{BufRead, BufReader, Write};
 use ulid::Ulid;
 
+use super::tools::*;
 use crate::core::fact::Fact;
 use crate::core::storage::Storage;
-use super::tools::*;
 
 /// JSON-RPC 2.0 Request
 #[derive(Debug, Deserialize)]
@@ -86,7 +86,7 @@ impl MehMcpServer {
     fn new(storage: Storage) -> Self {
         // Generate unique session ID for this MCP connection
         let session_id = format!("mcp-{}", Ulid::new());
-        
+
         // Load config to get write policy and KB type
         let (kb_name, write_policy, is_remote, remote_url) = match crate::config::Config::load() {
             Ok(config) => {
@@ -97,9 +97,14 @@ impl MehMcpServer {
                 let url = kb_config.and_then(|k| k.url.clone());
                 (kb_name, policy, is_remote, url)
             }
-            Err(_) => ("local".to_string(), crate::config::WritePolicy::Allow, false, None),
+            Err(_) => (
+                "local".to_string(),
+                crate::config::WritePolicy::Allow,
+                false,
+                None,
+            ),
         };
-        
+
         Self {
             storage,
             initialized: false,
@@ -113,14 +118,14 @@ impl MehMcpServer {
 
     /// Open pending queue for remote KB writes
     fn open_pending_queue(&self) -> Result<crate::core::PendingQueue, String> {
-        let config = crate::config::Config::load()
-            .map_err(|e| format!("Config error: {}", e))?;
-        
-        let queue_path = config.data_dir()
+        let config = crate::config::Config::load().map_err(|e| format!("Config error: {}", e))?;
+
+        let queue_path = config
+            .data_dir()
             .parent()
             .map(|p| p.join("pending_queue.db"))
             .unwrap_or_else(|| std::path::PathBuf::from(".meh/pending_queue.db"));
-        
+
         crate::core::PendingQueue::open(&queue_path)
             .map_err(|e| format!("Pending queue error: {}", e))
     }
@@ -128,7 +133,7 @@ impl MehMcpServer {
     /// Handle a JSON-RPC request
     fn handle_request(&mut self, request: &JsonRpcRequest) -> Option<JsonRpcResponse> {
         let id = request.id.clone().unwrap_or(Value::Null);
-        
+
         // Notifications (no id) don't get responses
         if request.id.is_none() {
             match request.method.as_str() {
@@ -308,7 +313,8 @@ impl MehMcpServer {
     }
 
     fn handle_call_tool(&mut self, params: &Value) -> Result<Value, (i64, String)> {
-        let name = params["name"].as_str()
+        let name = params["name"]
+            .as_str()
             .ok_or((-32602, "Missing tool name".to_string()))?;
         let arguments = &params["arguments"];
 
@@ -344,16 +350,17 @@ impl MehMcpServer {
     }
 
     fn do_search(&self, args: &Value) -> Result<String, String> {
-        let tool_args: MehSearchTool = serde_json::from_value(args.clone())
-            .map_err(|e| format!("Invalid params: {}", e))?;
-        
-        let facts = self.storage
+        let tool_args: MehSearchTool =
+            serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
+
+        let facts = self
+            .storage
             .search(&tool_args.query, tool_args.limit)
             .map_err(|e| format!("Search error: {}", e))?;
 
         // Check for pending notifications and inject at the top
         let notification_header = self.get_notification_header();
-        
+
         // Check for onboarding - show @readme on first search of session
         let onboarding_content = self.get_onboarding_content();
 
@@ -380,23 +387,24 @@ impl MehMcpServer {
                 fact.summary.as_deref().unwrap_or(&fact.content)
             ));
         }
-        
+
         // Add voting hint at the end if applicable
         if !voting_hint.is_empty() {
             result.push_str(&voting_hint);
         }
-        
+
         Ok(result)
     }
 
     /// Check if search results contain proposals/todos that AI should consider voting on
     fn get_voting_hint(&self, facts: &[Fact]) -> String {
         let proposal_paths = ["@meh/todo/", "@meh/board/", "/todo/", "/proposal/", "/rfc/"];
-        
-        let proposal_count = facts.iter()
+
+        let proposal_count = facts
+            .iter()
             .filter(|f| proposal_paths.iter().any(|p| f.path.contains(p)))
             .count();
-        
+
         if proposal_count > 0 {
             format!(
                 "\n💡 **Tip:** Found {} proposal(s)/TODO(s). Consider adding your perspective with `meh_extend` (format: `## 🗳️ Vote\\n+1 for X because...`).\n",
@@ -432,14 +440,18 @@ impl MehMcpServer {
     fn get_onboarding_content(&self) -> String {
         // Check if we already showed onboarding this session
         if let Ok(notif_storage) = self.open_notification_storage() {
-            let already_shown = notif_storage.is_onboarding_shown(&self.session_id).unwrap_or(true);
-            
+            let already_shown = notif_storage
+                .is_onboarding_shown(&self.session_id)
+                .unwrap_or(true);
+
             if already_shown {
                 return String::new();
             }
 
             // Try to get @readme fact
-            let readme = self.storage.get_by_path("@readme")
+            let readme = self
+                .storage
+                .get_by_path("@readme")
                 .ok()
                 .and_then(|facts| facts.into_iter().next());
 
@@ -461,20 +473,23 @@ impl MehMcpServer {
     }
 
     fn do_get_fact(&self, args: &Value) -> Result<String, String> {
-        let tool_args: MehGetFactTool = serde_json::from_value(args.clone())
-            .map_err(|e| format!("Invalid params: {}", e))?;
+        let tool_args: MehGetFactTool =
+            serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
         let fact = if tool_args.id_or_path.starts_with("meh-") {
             // Parse ULID from string (format: meh-01ABC...)
-            let ulid_str = tool_args.id_or_path.strip_prefix("meh-")
+            let ulid_str = tool_args
+                .id_or_path
+                .strip_prefix("meh-")
                 .ok_or("Invalid ID format")?;
-            let ulid = Ulid::from_string(ulid_str)
-                .map_err(|e| format!("Invalid ULID: {}", e))?;
-            self.storage.get_by_id(&ulid)
+            let ulid = Ulid::from_string(ulid_str).map_err(|e| format!("Invalid ULID: {}", e))?;
+            self.storage
+                .get_by_id(&ulid)
                 .map_err(|e| format!("Error: {}", e))?
         } else {
             // Get by path returns Vec, take first active
-            self.storage.get_by_path(&tool_args.id_or_path)
+            self.storage
+                .get_by_path(&tool_args.id_or_path)
                 .map_err(|e| format!("Error: {}", e))?
                 .into_iter()
                 .next()
@@ -504,7 +519,8 @@ impl MehMcpServer {
         }
 
         if !fact.extends.is_empty() {
-            let extends_str: Vec<String> = fact.extends.iter().map(|u| format!("meh-{}", u)).collect();
+            let extends_str: Vec<String> =
+                fact.extends.iter().map(|u| format!("meh-{}", u)).collect();
             result.push_str(&format!("\n**Extends:** {}\n", extends_str.join(", ")));
         }
 
@@ -512,12 +528,17 @@ impl MehMcpServer {
     }
 
     fn do_browse(&self, args: &Value) -> Result<String, String> {
-        let tool_args: MehBrowseTool = serde_json::from_value(args.clone())
-            .map_err(|e| format!("Invalid params: {}", e))?;
+        let tool_args: MehBrowseTool =
+            serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
         // Use list_children with pagination
-        let (entries, has_more) = self.storage
-            .list_children(&tool_args.path, tool_args.limit, tool_args.cursor.as_deref())
+        let (entries, has_more) = self
+            .storage
+            .list_children(
+                &tool_args.path,
+                tool_args.limit,
+                tool_args.cursor.as_deref(),
+            )
             .map_err(|e| format!("Browse error: {}", e))?;
 
         if entries.is_empty() {
@@ -529,10 +550,13 @@ impl MehMcpServer {
             result.push_str(&format!("{} ({})", entry.path, entry.fact_count));
             result.push('\n');
         }
-        
+
         if has_more {
             if let Some(last) = entries.last() {
-                result.push_str(&format!("\n[More results available. Use cursor: \"{}\"]", last.path));
+                result.push_str(&format!(
+                    "\n[More results available. Use cursor: \"{}\"]",
+                    last.path
+                ));
             }
         }
         Ok(result)
@@ -541,11 +565,14 @@ impl MehMcpServer {
     fn do_add(&mut self, args: &Value) -> Result<String, String> {
         // Check write policy
         if self.write_policy == crate::config::WritePolicy::Deny {
-            return Err(format!("Write denied: KB '{}' has write policy 'deny'", self.kb_name));
+            return Err(format!(
+                "Write denied: KB '{}' has write policy 'deny'",
+                self.kb_name
+            ));
         }
 
-        let tool_args: MehAddTool = serde_json::from_value(args.clone())
-            .map_err(|e| format!("Invalid params: {}", e))?;
+        let tool_args: MehAddTool =
+            serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
         // If remote KB with "ask" policy, queue locally instead of writing to remote
         if self.is_remote_kb && self.write_policy == crate::config::WritePolicy::Ask {
@@ -558,9 +585,10 @@ impl MehMcpServer {
                 tool_args.tags,
             );
             let id = pending.id;
-            queue.enqueue(&pending)
+            queue
+                .enqueue(&pending)
                 .map_err(|e| format!("Queue error: {}", e))?;
-            
+
             return Ok(format!(
                 "⏳ Queued for remote KB '{}' (pending approval): queue-{}\n  Path: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
                 self.kb_name, id, tool_args.path, id
@@ -568,7 +596,8 @@ impl MehMcpServer {
         }
 
         // Create title from first line or first 50 chars
-        let title = tool_args.content
+        let title = tool_args
+            .content
             .lines()
             .next()
             .unwrap_or(&tool_args.content)
@@ -594,27 +623,37 @@ impl MehMcpServer {
         if is_pending {
             Ok(format!("⏳ Created fact (pending review): meh-{}\n  Path: {}\n  ℹ️ Use `meh pending approve meh-{}` to activate", id, tool_args.path, id))
         } else {
-            Ok(format!("✓ Created fact: meh-{}\n  Path: {}", id, tool_args.path))
+            Ok(format!(
+                "✓ Created fact: meh-{}\n  Path: {}",
+                id, tool_args.path
+            ))
         }
     }
 
     fn do_correct(&mut self, args: &Value) -> Result<String, String> {
         // Check write policy
         if self.write_policy == crate::config::WritePolicy::Deny {
-            return Err(format!("Write denied: KB '{}' has write policy 'deny'", self.kb_name));
+            return Err(format!(
+                "Write denied: KB '{}' has write policy 'deny'",
+                self.kb_name
+            ));
         }
 
-        let tool_args: MehCorrectTool = serde_json::from_value(args.clone())
-            .map_err(|e| format!("Invalid params: {}", e))?;
+        let tool_args: MehCorrectTool =
+            serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
         // Parse original fact ID
-        let ulid_str = tool_args.fact_id.strip_prefix("meh-")
+        let ulid_str = tool_args
+            .fact_id
+            .strip_prefix("meh-")
             .ok_or("Invalid ID format - expected meh-XXX")?;
-        let original_ulid = Ulid::from_string(ulid_str)
-            .map_err(|e| format!("Invalid ULID: {}", e))?;
+        let original_ulid =
+            Ulid::from_string(ulid_str).map_err(|e| format!("Invalid ULID: {}", e))?;
 
         // Get original fact (for path)
-        let original = self.storage.get_by_id(&original_ulid)
+        let original = self
+            .storage
+            .get_by_id(&original_ulid)
             .map_err(|e| format!("Error: {}", e))?
             .ok_or_else(|| format!("Original fact not found: {}", tool_args.fact_id))?;
 
@@ -629,9 +668,10 @@ impl MehMcpServer {
                 &tool_args.fact_id,
             );
             let id = pending.id;
-            queue.enqueue(&pending)
+            queue
+                .enqueue(&pending)
                 .map_err(|e| format!("Queue error: {}", e))?;
-            
+
             return Ok(format!(
                 "⏳ Queued correction for remote KB '{}' (pending approval): queue-{}\n  Will supersede: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
                 self.kb_name, id, tool_args.fact_id, id
@@ -653,13 +693,15 @@ impl MehMcpServer {
         let new_id = correction.id;
 
         // Insert correction
-        self.storage.insert(&correction)
+        self.storage
+            .insert(&correction)
             .map_err(|e| format!("Insert error: {}", e))?;
 
         // Only mark original as superseded if not pending
         // (pending corrections don't supersede until approved)
         if !is_pending {
-            self.storage.mark_superseded(&original_ulid)
+            self.storage
+                .mark_superseded(&original_ulid)
                 .map_err(|e| format!("Update error: {}", e))?;
         }
 
@@ -679,20 +721,27 @@ impl MehMcpServer {
     fn do_extend(&mut self, args: &Value) -> Result<String, String> {
         // Check write policy
         if self.write_policy == crate::config::WritePolicy::Deny {
-            return Err(format!("Write denied: KB '{}' has write policy 'deny'", self.kb_name));
+            return Err(format!(
+                "Write denied: KB '{}' has write policy 'deny'",
+                self.kb_name
+            ));
         }
 
-        let tool_args: MehExtendTool = serde_json::from_value(args.clone())
-            .map_err(|e| format!("Invalid params: {}", e))?;
+        let tool_args: MehExtendTool =
+            serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
         // Parse original fact ID
-        let ulid_str = tool_args.fact_id.strip_prefix("meh-")
+        let ulid_str = tool_args
+            .fact_id
+            .strip_prefix("meh-")
             .ok_or("Invalid ID format - expected meh-XXX")?;
-        let original_ulid = Ulid::from_string(ulid_str)
-            .map_err(|e| format!("Invalid ULID: {}", e))?;
+        let original_ulid =
+            Ulid::from_string(ulid_str).map_err(|e| format!("Invalid ULID: {}", e))?;
 
         // Get original fact
-        let original = self.storage.get_by_id(&original_ulid)
+        let original = self
+            .storage
+            .get_by_id(&original_ulid)
             .map_err(|e| format!("Error: {}", e))?
             .ok_or_else(|| format!("Original fact not found: {}", tool_args.fact_id))?;
 
@@ -707,9 +756,10 @@ impl MehMcpServer {
                 &tool_args.fact_id,
             );
             let id = pending.id;
-            queue.enqueue(&pending)
+            queue
+                .enqueue(&pending)
                 .map_err(|e| format!("Queue error: {}", e))?;
-            
+
             return Ok(format!(
                 "⏳ Queued extension for remote KB '{}' (pending approval): queue-{}\n  Will extend: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
                 self.kb_name, id, tool_args.fact_id, id
@@ -731,7 +781,8 @@ impl MehMcpServer {
         let new_id = extension.id;
 
         // Insert extension
-        self.storage.insert(&extension)
+        self.storage
+            .insert(&extension)
             .map_err(|e| format!("Insert error: {}", e))?;
 
         if is_pending {
@@ -750,11 +801,14 @@ impl MehMcpServer {
     fn do_deprecate(&mut self, args: &Value) -> Result<String, String> {
         // Check write policy (deprecation is also a write operation)
         if self.write_policy == crate::config::WritePolicy::Deny {
-            return Err(format!("Write denied: KB '{}' has write policy 'deny'", self.kb_name));
+            return Err(format!(
+                "Write denied: KB '{}' has write policy 'deny'",
+                self.kb_name
+            ));
         }
 
-        let tool_args: MehDeprecateTool = serde_json::from_value(args.clone())
-            .map_err(|e| format!("Invalid params: {}", e))?;
+        let tool_args: MehDeprecateTool =
+            serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
         // If remote KB with "ask" policy, queue locally
         if self.is_remote_kb && self.write_policy == crate::config::WritePolicy::Ask {
@@ -766,9 +820,10 @@ impl MehMcpServer {
                 tool_args.reason.as_deref(),
             );
             let id = pending.id;
-            queue.enqueue(&pending)
+            queue
+                .enqueue(&pending)
                 .map_err(|e| format!("Queue error: {}", e))?;
-            
+
             return Ok(format!(
                 "⏳ Queued deprecation for remote KB '{}' (pending approval): queue-{}\n  Fact: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
                 self.kb_name, id, tool_args.fact_id, id
@@ -776,33 +831,40 @@ impl MehMcpServer {
         }
 
         // Parse fact ID
-        let ulid_str = tool_args.fact_id.strip_prefix("meh-")
+        let ulid_str = tool_args
+            .fact_id
+            .strip_prefix("meh-")
             .ok_or("Invalid ID format - expected meh-XXX")?;
-        let ulid = Ulid::from_string(ulid_str)
-            .map_err(|e| format!("Invalid ULID: {}", e))?;
+        let ulid = Ulid::from_string(ulid_str).map_err(|e| format!("Invalid ULID: {}", e))?;
 
         // Mark as deprecated
-        self.storage.mark_deprecated(&ulid)
+        self.storage
+            .mark_deprecated(&ulid)
             .map_err(|e| format!("Deprecate error: {}", e))?;
 
         Ok(format!("✓ Deprecated fact: {}", tool_args.fact_id))
     }
 
     fn do_get_notifications(&self, args: &Value) -> Result<String, String> {
-        let tool_args: MehGetNotificationsTool = serde_json::from_value(args.clone())
-            .map_err(|e| format!("Invalid params: {}", e))?;
+        let tool_args: MehGetNotificationsTool =
+            serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
-        let notif_storage = self.open_notification_storage()
+        let notif_storage = self
+            .open_notification_storage()
             .map_err(|e| format!("Notification storage error: {}", e))?;
 
         // Get notifications for this session
-        let notifications = notif_storage.get_for_session(&self.session_id, tool_args.limit as usize)
+        let notifications = notif_storage
+            .get_for_session(&self.session_id, tool_args.limit as usize)
             .map_err(|e| format!("Get notifications error: {}", e))?;
 
         // Apply additional priority filter if specified
         let notifications: Vec<_> = if let Some(ref p) = tool_args.priority_min {
             if let Some(min_p) = crate::core::notifications::Priority::from_str(p) {
-                notifications.into_iter().filter(|n| n.priority >= min_p).collect()
+                notifications
+                    .into_iter()
+                    .filter(|n| n.priority >= min_p)
+                    .collect()
             } else {
                 notifications
             }
@@ -810,15 +872,19 @@ impl MehMcpServer {
             notifications
         };
 
-        let pending_count = notif_storage.pending_count(&self.session_id)
+        let pending_count = notif_storage
+            .pending_count(&self.session_id)
             .map_err(|e| format!("Count error: {}", e))?;
 
         if notifications.is_empty() {
-            return Ok(format!("✓ No new notifications for this session (pending: {})", pending_count));
+            return Ok(format!(
+                "✓ No new notifications for this session (pending: {})",
+                pending_count
+            ));
         }
 
         let mut output = format!("📬 {} new notification(s):\n\n", notifications.len());
-        
+
         for notif in &notifications {
             let priority_icon = match notif.priority {
                 crate::core::notifications::Priority::Critical => "🔴",
@@ -835,7 +901,13 @@ impl MehMcpServer {
                 crate::core::notifications::Category::Custom(_) => "📌",
             };
 
-            output.push_str(&format!("{} {} {} [{}]\n", priority_icon, cat_icon, notif.title, notif.category.as_str()));
+            output.push_str(&format!(
+                "{} {} {} [{}]\n",
+                priority_icon,
+                cat_icon,
+                notif.title,
+                notif.category.as_str()
+            ));
             output.push_str(&format!("   {}\n", notif.summary));
             if let Some(path) = &notif.path {
                 output.push_str(&format!("   📁 {}\n", path));
@@ -848,51 +920,76 @@ impl MehMcpServer {
             let _ = notif_storage.mark_seen(&self.session_id, &last.id);
         }
 
-        output.push_str(&format!("Session: {} | Pending: {}", self.session_id, pending_count));
+        output.push_str(&format!(
+            "Session: {} | Pending: {}",
+            self.session_id, pending_count
+        ));
         Ok(output)
     }
 
     fn do_ack_notifications(&self, args: &Value) -> Result<String, String> {
-        let tool_args: MehAckNotificationsTool = serde_json::from_value(args.clone())
-            .map_err(|e| format!("Invalid params: {}", e))?;
+        let tool_args: MehAckNotificationsTool =
+            serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
-        let notif_storage = self.open_notification_storage()
+        let notif_storage = self
+            .open_notification_storage()
             .map_err(|e| format!("Notification storage error: {}", e))?;
 
         // Check for "*" meaning all
         if tool_args.notification_ids.len() == 1 && tool_args.notification_ids[0] == "*" {
-            let count = notif_storage.acknowledge_all(&self.session_id)
+            let count = notif_storage
+                .acknowledge_all(&self.session_id)
                 .map_err(|e| format!("Ack error: {}", e))?;
-            return Ok(format!("✓ Acknowledged {} notification(s) for session {}", count, self.session_id));
+            return Ok(format!(
+                "✓ Acknowledged {} notification(s) for session {}",
+                count, self.session_id
+            ));
         }
 
         // For specific IDs, mark up to the last one as seen
         if let Some(last_id) = tool_args.notification_ids.last() {
             let ulid_str = last_id.strip_prefix("meh-").unwrap_or(last_id);
             if let Ok(ulid) = Ulid::from_string(ulid_str) {
-                notif_storage.mark_seen(&self.session_id, &ulid)
+                notif_storage
+                    .mark_seen(&self.session_id, &ulid)
                     .map_err(|e| format!("Mark seen error: {}", e))?;
             }
         }
 
-        Ok(format!("✓ Marked {} notification(s) as seen", tool_args.notification_ids.len()))
+        Ok(format!(
+            "✓ Marked {} notification(s) as seen",
+            tool_args.notification_ids.len()
+        ))
     }
 
     fn do_subscribe(&self, args: &Value) -> Result<String, String> {
         let show = args["show"].as_bool().unwrap_or(false);
-        
-        let notif_storage = self.open_notification_storage()
+
+        let notif_storage = self
+            .open_notification_storage()
             .map_err(|e| format!("Notification storage error: {}", e))?;
 
         if show {
-            let (_, sub) = notif_storage.get_or_create_session(&self.session_id)
+            let (_, sub) = notif_storage
+                .get_or_create_session(&self.session_id)
                 .map_err(|e| format!("Session error: {}", e))?;
-            
+
             let cats: Vec<&str> = sub.categories.iter().map(|c| c.as_str()).collect();
-            let cats_str = if cats.is_empty() { "all".to_string() } else { cats.join(", ") };
-            let paths_str = if sub.path_prefixes.is_empty() { "all".to_string() } else { sub.path_prefixes.join(", ") };
-            let priority_str = sub.priority_min.map(|p| p.as_str().to_string()).unwrap_or_else(|| "all".to_string());
-            
+            let cats_str = if cats.is_empty() {
+                "all".to_string()
+            } else {
+                cats.join(", ")
+            };
+            let paths_str = if sub.path_prefixes.is_empty() {
+                "all".to_string()
+            } else {
+                sub.path_prefixes.join(", ")
+            };
+            let priority_str = sub
+                .priority_min
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_else(|| "all".to_string());
+
             return Ok(format!(
                 "📋 Current subscription for session {}:\n   Categories: {}\n   Paths: {}\n   Min priority: {}",
                 self.session_id, cats_str, paths_str, priority_str
@@ -925,13 +1022,25 @@ impl MehMcpServer {
             }
         }
 
-        notif_storage.update_subscription(&self.session_id, &sub)
+        notif_storage
+            .update_subscription(&self.session_id, &sub)
             .map_err(|e| format!("Update subscription error: {}", e))?;
 
         let cats: Vec<&str> = sub.categories.iter().map(|c| c.as_str()).collect();
-        let cats_str = if cats.is_empty() { "all".to_string() } else { cats.join(", ") };
-        let paths_str = if sub.path_prefixes.is_empty() { "all".to_string() } else { sub.path_prefixes.join(", ") };
-        let priority_str = sub.priority_min.map(|p| p.as_str().to_string()).unwrap_or_else(|| "all".to_string());
+        let cats_str = if cats.is_empty() {
+            "all".to_string()
+        } else {
+            cats.join(", ")
+        };
+        let paths_str = if sub.path_prefixes.is_empty() {
+            "all".to_string()
+        } else {
+            sub.path_prefixes.join(", ")
+        };
+        let priority_str = sub
+            .priority_min
+            .map(|p| p.as_str().to_string())
+            .unwrap_or_else(|| "all".to_string());
 
         Ok(format!(
             "✓ Subscription updated for session {}:\n   Categories: {}\n   Paths: {}\n   Min priority: {}",
@@ -939,7 +1048,9 @@ impl MehMcpServer {
         ))
     }
 
-    fn open_notification_storage(&self) -> anyhow::Result<crate::core::notifications::NotificationStorage> {
+    fn open_notification_storage(
+        &self,
+    ) -> anyhow::Result<crate::core::notifications::NotificationStorage> {
         // Use same directory as main storage - derive from env or default
         let db_path = if let Ok(env_path) = std::env::var("MEH_DATABASE") {
             std::path::PathBuf::from(env_path)
@@ -949,7 +1060,8 @@ impl MehMcpServer {
                 .unwrap_or_else(|_| std::path::PathBuf::from(".meh/data.db"))
         };
 
-        let notif_path = db_path.parent()
+        let notif_path = db_path
+            .parent()
             .map(|p| p.join("notifications.db"))
             .unwrap_or_else(|| db_path.with_extension("notifications.db"));
 
@@ -960,18 +1072,18 @@ impl MehMcpServer {
 /// Run the MCP server with STDIO transport
 pub fn run_mcp_server(db_path: std::path::PathBuf) -> anyhow::Result<()> {
     eprintln!("meh MCP server starting...");
-    
+
     let storage = Storage::open(&db_path)?;
-    
+
     // Auto-GC on startup if enabled in config
     run_auto_gc(&storage);
-    
+
     let mut server = MehMcpServer::new(storage);
-    
+
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
     let reader = BufReader::new(stdin.lock());
-    
+
     for line in reader.lines() {
         let line = line?;
         if line.trim().is_empty() {
@@ -983,11 +1095,8 @@ pub fn run_mcp_server(db_path: std::path::PathBuf) -> anyhow::Result<()> {
         let request: JsonRpcRequest = match serde_json::from_str(&line) {
             Ok(req) => req,
             Err(e) => {
-                let response = JsonRpcResponse::error(
-                    Value::Null,
-                    -32700,
-                    format!("Parse error: {}", e),
-                );
+                let response =
+                    JsonRpcResponse::error(Value::Null, -32700, format!("Parse error: {}", e));
                 let json = serde_json::to_string(&response)?;
                 writeln!(stdout, "{}", json)?;
                 stdout.flush()?;
@@ -1019,11 +1128,13 @@ fn run_auto_gc(storage: &Storage) {
     }
 
     let retention_days = config.core.gc_retention_days;
-    
+
     match storage.garbage_collect(retention_days, false) {
         Ok(result) if result.deleted_count > 0 => {
-            eprintln!("🧹 Auto-GC: Cleaned {} deprecated/superseded fact(s) older than {} days", 
-                     result.deleted_count, retention_days);
+            eprintln!(
+                "🧹 Auto-GC: Cleaned {} deprecated/superseded fact(s) older than {} days",
+                result.deleted_count, retention_days
+            );
         }
         Ok(_) => {
             // Nothing to clean, don't log

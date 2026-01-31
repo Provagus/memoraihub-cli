@@ -10,19 +10,19 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     #[serde(default)]
     pub user: UserConfig,
-    
+
     #[serde(default)]
     pub core: CoreConfig,
-    
+
     #[serde(default)]
     pub search: SearchConfig,
-    
+
     #[serde(default)]
     pub trust: TrustConfig,
-    
+
     #[serde(default)]
     pub server: ServerConfig,
-    
+
     /// Knowledge base configurations
     #[serde(default)]
     pub kbs: KnowledgeBasesConfig,
@@ -32,7 +32,7 @@ pub struct Config {
 pub struct UserConfig {
     #[serde(default = "default_user_name")]
     pub name: String,
-    
+
     #[serde(default)]
     pub agent_id: String,
 }
@@ -54,17 +54,17 @@ fn default_user_name() -> String {
 pub struct CoreConfig {
     #[serde(default = "default_source")]
     pub default_source: String,
-    
+
     #[serde(default)]
     pub cache_dir: Option<PathBuf>,
-    
+
     #[serde(default = "default_cache_max_mb")]
     pub cache_max_mb: usize,
-    
+
     /// Retention period for deprecated/superseded facts (days)
     #[serde(default = "default_gc_retention_days")]
     pub gc_retention_days: u32,
-    
+
     /// Auto-run GC on MCP server start
     #[serde(default = "default_gc_auto")]
     pub gc_auto: bool,
@@ -102,10 +102,10 @@ fn default_gc_auto() -> bool {
 pub struct SearchConfig {
     #[serde(default = "default_limit")]
     pub default_limit: usize,
-    
+
     #[serde(default = "default_token_budget")]
     pub token_budget: usize,
-    
+
     #[serde(default = "default_timeout_secs")]
     pub federated_timeout_secs: u64,
 }
@@ -136,7 +136,7 @@ fn default_timeout_secs() -> u64 {
 pub struct TrustConfig {
     #[serde(default = "default_trust_score")]
     pub default_score: f32,
-    
+
     #[serde(default = "default_decay_rate")]
     pub decay_rate: f32,
 }
@@ -164,19 +164,19 @@ pub struct ServerConfig {
     /// Server URL (e.g., "http://localhost:3000")
     #[serde(default)]
     pub url: Option<String>,
-    
+
     /// Authentication token (JWT access token)
     #[serde(default)]
     pub token: Option<String>,
-    
+
     /// API key for AI agents (meh_xxx format)
     #[serde(default)]
     pub api_key: Option<String>,
-    
+
     /// Default knowledge base slug
     #[serde(default)]
     pub default_kb: Option<String>,
-    
+
     /// Connection timeout in seconds
     #[serde(default = "default_server_timeout")]
     pub timeout_secs: u64,
@@ -204,11 +204,11 @@ pub struct KnowledgeBasesConfig {
     /// Primary KB name (used when no --kb specified)
     #[serde(default = "default_primary_kb")]
     pub primary: String,
-    
+
     /// Order for federated search
     #[serde(default)]
     pub search_order: Vec<String>,
-    
+
     /// Individual KB configurations
     #[serde(default)]
     pub kb: Vec<KbConfig>,
@@ -223,23 +223,23 @@ fn default_primary_kb() -> String {
 pub struct KbConfig {
     /// KB name/identifier
     pub name: String,
-    
+
     /// Type: "sqlite" or "remote"
     #[serde(default = "default_kb_type")]
     pub kb_type: String,
-    
+
     /// Path for sqlite, URL for remote
     #[serde(default)]
     pub path: Option<String>,
-    
+
     /// URL for remote KB
     #[serde(default)]
     pub url: Option<String>,
-    
+
     /// Environment variable name for API key
     #[serde(default)]
     pub api_key_env: Option<String>,
-    
+
     /// Write policy: allow, deny, ask
     #[serde(default = "default_write_policy")]
     pub write: WritePolicy,
@@ -304,7 +304,7 @@ impl Config {
     /// Find local .meh/config.toml walking up directories
     pub fn find_local_config() -> Option<PathBuf> {
         let mut current = std::env::current_dir().ok()?;
-        
+
         loop {
             let config_path = current.join(".meh").join("config.toml");
             if config_path.exists() {
@@ -322,7 +322,7 @@ impl Config {
     /// Find local .meh/data.db walking up directories
     pub fn find_local_db() -> Option<PathBuf> {
         let mut current = std::env::current_dir().ok()?;
-        
+
         loop {
             let db_path = current.join(".meh").join("data.db");
             if db_path.exists() {
@@ -379,7 +379,8 @@ impl Config {
     /// Get write policy for a knowledge base by name
     /// Returns Allow if KB not found (backward compatible)
     pub fn get_write_policy(&self, kb_name: &str) -> WritePolicy {
-        self.kbs.kb
+        self.kbs
+            .kb
             .iter()
             .find(|kb| kb.name == kb_name)
             .map(|kb| kb.write)

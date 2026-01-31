@@ -36,11 +36,11 @@ pub struct Cli {
     /// Config file path
     #[arg(short, long, global = true, env = "MEH_CONFIG")]
     pub config: Option<String>,
-    
+
     /// Use remote server instead of local database
     #[arg(long, global = true, env = "MEH_SERVER_URL")]
     pub server: Option<String>,
-    
+
     /// Knowledge base slug (for remote operations)
     #[arg(long, global = true, env = "MEH_KB")]
     pub kb: Option<String>,
@@ -98,7 +98,7 @@ pub enum Commands {
 
     /// Start MCP server (for AI integration)
     Serve(serve::ServeArgs),
-    
+
     /// Manage remote knowledge bases
     Kbs(kbs::KbsArgs),
 }

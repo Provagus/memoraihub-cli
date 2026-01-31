@@ -177,7 +177,11 @@ impl PathTree {
             let is_last_child = i == keys.len() - 1;
             let child = &self.children[*key];
 
-            let branch = if is_last_child { "└── " } else { "├── " };
+            let branch = if is_last_child {
+                "└── "
+            } else {
+                "├── "
+            };
             let suffix = if child.children.is_empty() { "" } else { "/" };
             println!("{}{}{}{}", indent, branch, key, suffix);
 
@@ -198,9 +202,7 @@ fn find_meh_dir() -> Result<PathBuf> {
         }
 
         if !current.pop() {
-            bail!(
-                "Not a meh repository (or any parent directory). Run 'meh init' first."
-            );
+            bail!("Not a meh repository (or any parent directory). Run 'meh init' first.");
         }
     }
 }

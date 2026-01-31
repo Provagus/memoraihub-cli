@@ -17,7 +17,9 @@ pub struct MehSearchTool {
     pub limit: i64,
 }
 
-fn default_limit() -> i64 { 20 }
+fn default_limit() -> i64 {
+    20
+}
 
 /// Get a single fact by ID or path
 #[derive(Debug, Deserialize, Serialize)]
@@ -49,10 +51,18 @@ pub struct MehBrowseTool {
     pub cursor: Option<String>,
 }
 
-fn default_path() -> String { "@".to_string() }
-fn default_mode() -> String { "ls".to_string() }
-fn default_depth() -> i32 { 3 }
-fn default_browse_limit() -> i64 { 100 }
+fn default_path() -> String {
+    "@".to_string()
+}
+fn default_mode() -> String {
+    "ls".to_string()
+}
+fn default_depth() -> i32 {
+    3
+}
+fn default_browse_limit() -> i64 {
+    100
+}
 
 /// Add a new fact to the knowledge base
 #[derive(Debug, Deserialize, Serialize)]
@@ -108,7 +118,9 @@ pub struct MehGetNotificationsTool {
     pub limit: i64,
 }
 
-fn default_notif_limit() -> i64 { 10 }
+fn default_notif_limit() -> i64 {
+    10
+}
 
 /// Acknowledge notifications
 #[derive(Debug, Deserialize, Serialize)]

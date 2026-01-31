@@ -29,7 +29,7 @@ struct SourcedStorage {
 }
 
 /// Multi-storage manager
-/// 
+///
 /// Reads from multiple databases, writes to local only.
 pub struct MultiStorage {
     /// Local storage (always first, writable)
@@ -41,9 +41,8 @@ pub struct MultiStorage {
 impl MultiStorage {
     /// Create with just local storage
     pub fn new(local_path: &Path) -> Result<Self> {
-        let local = Storage::open(local_path)
-            .context("Failed to open local storage")?;
-        
+        let local = Storage::open(local_path).context("Failed to open local storage")?;
+
         Ok(Self {
             local,
             caches: Vec::new(),
@@ -52,15 +51,14 @@ impl MultiStorage {
 
     /// Add a cache storage (read-only)
     pub fn add_cache(&mut self, name: impl Into<String>, path: &Path) -> Result<()> {
-        let storage = Storage::open(path)
-            .context("Failed to open cache storage")?;
-        
+        let storage = Storage::open(path).context("Failed to open cache storage")?;
+
         self.caches.push(SourcedStorage {
             source: StorageSource::Cache(name.into()),
             storage,
             readonly: true,
         });
-        
+
         Ok(())
     }
 
@@ -74,19 +72,20 @@ impl MultiStorage {
         for entry in std::fs::read_dir(cache_dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.extension().map_or(false, |ext| ext == "db") {
-                let name = path.file_stem()
+                let name = path
+                    .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("unknown")
                     .to_string();
-                
+
                 if let Ok(()) = self.add_cache(&name, &path) {
                     count += 1;
                 }
             }
         }
-        
+
         Ok(count)
     }
 
@@ -125,7 +124,7 @@ impl MultiStorage {
     /// Get by path - merge results from all sources
     pub fn get_by_path(&self, path: &str) -> Result<Vec<Fact>> {
         let mut results = self.local.get_by_path(path)?;
-        
+
         for cache in &self.caches {
             let cache_results = cache.storage.get_by_path(path)?;
             results.extend(cache_results);
@@ -134,14 +133,14 @@ impl MultiStorage {
         // Sort by created_at desc, dedupe by id
         results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         results.dedup_by(|a, b| a.id == b.id);
-        
+
         Ok(results)
     }
 
     /// Search across all storages
     pub fn search(&self, query: &str, limit: i64) -> Result<Vec<Fact>> {
         let mut results = self.local.search(query, limit)?;
-        
+
         for cache in &self.caches {
             let cache_results = cache.storage.search(query, limit)?;
             results.extend(cache_results);
@@ -151,12 +150,17 @@ impl MultiStorage {
         results.sort_by(|a, b| b.trust_score.partial_cmp(&a.trust_score).unwrap());
         results.dedup_by(|a, b| a.id == b.id);
         results.truncate(limit as usize);
-        
+
         Ok(results)
     }
 
     /// List children - merge from all sources
-    pub fn list_children(&self, parent: &str, limit: i64, cursor: Option<&str>) -> Result<(Vec<PathInfo>, bool)> {
+    pub fn list_children(
+        &self,
+        parent: &str,
+        limit: i64,
+        cursor: Option<&str>,
+    ) -> Result<(Vec<PathInfo>, bool)> {
         // For now, just use local - merging path counts is complex
         // TODO: Merge path counts from caches
         self.local.list_children(parent, limit, cursor)
@@ -165,7 +169,7 @@ impl MultiStorage {
     /// Get stats from all storages
     pub fn stats(&self) -> Result<MultiStorageStats> {
         let local_stats = self.local.stats()?;
-        
+
         let mut cache_stats = Vec::new();
         for cache in &self.caches {
             let name = match &cache.source {
@@ -175,7 +179,7 @@ impl MultiStorage {
             let stats = cache.storage.stats()?;
             cache_stats.push((name, stats));
         }
-        
+
         Ok(MultiStorageStats {
             local: local_stats,
             caches: cache_stats,
@@ -218,12 +222,12 @@ mod tests {
     fn test_multi_storage_local_only() {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("local.db");
-        
+
         let storage = MultiStorage::new(&db_path).unwrap();
-        
+
         let fact = Fact::new("@test/path", "Test", "Content");
         storage.insert(&fact).unwrap();
-        
+
         let found = storage.get_by_id(&fact.id).unwrap();
         assert!(found.is_some());
     }
@@ -233,18 +237,18 @@ mod tests {
         let dir = tempdir().unwrap();
         let local_path = dir.path().join("local.db");
         let cache_path = dir.path().join("cache.db");
-        
+
         // Create cache with a fact
         {
             let cache = Storage::open(&cache_path).unwrap();
             let fact = Fact::new("@cached/path", "Cached", "From cache");
             cache.insert(&fact).unwrap();
         }
-        
+
         // Create multi-storage
         let mut storage = MultiStorage::new(&local_path).unwrap();
         storage.add_cache("test-cache", &cache_path).unwrap();
-        
+
         // Should find cached fact
         let results = storage.search("cached", 10).unwrap();
         assert_eq!(results.len(), 1);

@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
 
     // Parse CLI arguments
     let cli = Cli::parse();
-    
+
     // Check if this command should show notifications hint
     let show_hint = should_show_notifications_hint(&cli.command);
 
@@ -44,12 +44,12 @@ async fn main() -> Result<()> {
         Commands::Serve(args) => run_serve(args).await,
         Commands::Kbs(args) => meh::cli::kbs::execute(args).await,
     };
-    
+
     // Show notifications hint if appropriate
     if show_hint && result.is_ok() {
         show_pending_notifications_hint();
     }
-    
+
     result
 }
 
@@ -57,11 +57,11 @@ async fn main() -> Result<()> {
 fn should_show_notifications_hint(command: &Commands) -> bool {
     !matches!(
         command,
-        Commands::Serve(_) 
-        | Commands::Notifications(_) 
-        | Commands::Context(_)
-        | Commands::Config(_)
-        | Commands::Init(_)
+        Commands::Serve(_)
+            | Commands::Notifications(_)
+            | Commands::Context(_)
+            | Commands::Config(_)
+            | Commands::Init(_)
     )
 }
 
@@ -71,17 +71,23 @@ fn show_pending_notifications_hint() {
     if let Ok(config) = meh::config::Config::load() {
         let data_dir = config.data_dir();
         // Notifications are in notifications.db, not data.db
-        let notifications_db = data_dir.parent()
+        let notifications_db = data_dir
+            .parent()
             .map(|p| p.join("notifications.db"))
             .unwrap_or_else(|| data_dir.with_extension("notifications.db"));
-        
+
         if notifications_db.exists() {
-            if let Ok(storage) = meh::core::notifications::NotificationStorage::open(&notifications_db) {
+            if let Ok(storage) =
+                meh::core::notifications::NotificationStorage::open(&notifications_db)
+            {
                 // Use a consistent session ID for CLI
                 let session_id = "cli-session";
                 if let Ok(pending) = storage.count_pending_for_session(session_id) {
                     if pending > 0 {
-                        eprintln!("\n📬 {} notification(s) pending (meh notifications)", pending);
+                        eprintln!(
+                            "\n📬 {} notification(s) pending (meh notifications)",
+                            pending
+                        );
                     }
                 }
             }
@@ -92,7 +98,7 @@ fn show_pending_notifications_hint() {
 async fn run_serve(args: meh::cli::serve::ServeArgs) -> Result<()> {
     use meh::config::Config;
     use meh::core::storage::Storage;
-    
+
     // Determine database path
     let db_path = if let Some(ref path) = args.db {
         path.clone()
@@ -112,13 +118,16 @@ async fn run_serve(args: meh::cli::serve::ServeArgs) -> Result<()> {
             let _ = Storage::open(&db_path)?;
             eprintln!("✅ Database initialized");
         } else {
-            anyhow::bail!("Database not found at {:?}. Run 'meh init' or use --auto-init.", db_path);
+            anyhow::bail!(
+                "Database not found at {:?}. Run 'meh init' or use --auto-init.",
+                db_path
+            );
         }
     }
 
     eprintln!("🚀 Starting MCP server (transport: {})", args.transport);
     eprintln!("📂 Database: {:?}", db_path);
-    
+
     match args.transport.as_str() {
         "stdio" => {
             // run_mcp_server is sync, no await needed
@@ -129,7 +138,10 @@ async fn run_serve(args: meh::cli::serve::ServeArgs) -> Result<()> {
             anyhow::bail!("HTTP transport not yet implemented");
         }
         _ => {
-            anyhow::bail!("Unknown transport: {}. Use 'stdio' or 'http'.", args.transport);
+            anyhow::bail!(
+                "Unknown transport: {}. Use 'stdio' or 'http'.",
+                args.transport
+            );
         }
     }
 

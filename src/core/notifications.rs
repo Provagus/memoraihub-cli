@@ -231,17 +231,38 @@ impl Notification {
 
     /// Create notification for CI event
     pub fn for_ci(title: &str, summary: &str, priority: Priority) -> Self {
-        Self::new(Category::Ci, priority, "ci", NotificationType::Alert, title, summary)
+        Self::new(
+            Category::Ci,
+            priority,
+            "ci",
+            NotificationType::Alert,
+            title,
+            summary,
+        )
     }
 
     /// Create notification for security alert
     pub fn for_security(title: &str, summary: &str) -> Self {
-        Self::new(Category::Security, Priority::Critical, "security", NotificationType::Alert, title, summary)
+        Self::new(
+            Category::Security,
+            Priority::Critical,
+            "security",
+            NotificationType::Alert,
+            title,
+            summary,
+        )
     }
 
     /// Create notification for system alert
     pub fn for_system(title: &str, summary: &str, priority: Priority) -> Self {
-        Self::new(Category::System, priority, "system", NotificationType::Alert, title, summary)
+        Self::new(
+            Category::System,
+            priority,
+            "system",
+            NotificationType::Alert,
+            title,
+            summary,
+        )
     }
 }
 
@@ -296,7 +317,10 @@ impl Subscription {
 
         // Check category (empty = all)
         if !self.categories.is_empty() {
-            let cat_matches = self.categories.iter().any(|c| c.as_str() == notif.category.as_str());
+            let cat_matches = self
+                .categories
+                .iter()
+                .any(|c| c.as_str() == notif.category.as_str());
             if !cat_matches {
                 return false;
             }
@@ -326,26 +350,33 @@ impl Subscription {
             "categories": cats,
             "path_prefixes": self.path_prefixes,
             "priority_min": priority
-        }).to_string()
+        })
+        .to_string()
     }
 
     /// Deserialize from JSON string
     pub fn from_json(s: &str) -> Result<Self> {
         let v: serde_json::Value = serde_json::from_str(s)?;
-        
+
         let categories = v["categories"]
             .as_array()
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(Category::from_str)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(Category::from_str))
+                    .collect()
+            })
             .unwrap_or_default();
 
         let path_prefixes = v["path_prefixes"]
             .as_array()
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default();
 
-        let priority_min = v["priority_min"]
-            .as_str()
-            .and_then(Priority::from_str);
+        let priority_min = v["priority_min"].as_str().and_then(Priority::from_str);
 
         Ok(Self {
             categories,
@@ -422,11 +453,14 @@ impl NotificationStorage {
         )?;
 
         // Check if onboarding_shown column exists, add if not
-        let has_onboarding: bool = self.conn.query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='onboarding_shown'",
-            [],
-            |row| Ok(row.get::<_, i64>(0)? > 0),
-        ).unwrap_or(false);
+        let has_onboarding: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='onboarding_shown'",
+                [],
+                |row| Ok(row.get::<_, i64>(0)? > 0),
+            )
+            .unwrap_or(false);
 
         if !has_onboarding {
             let _ = self.conn.execute(
@@ -466,11 +500,14 @@ impl NotificationStorage {
         let now = Utc::now().to_rfc3339();
 
         // Try to get existing session
-        let result: Option<(Option<String>, String)> = self.conn.query_row(
-            "SELECT last_seen_id, subscription FROM sessions WHERE session_id = ?1",
-            params![session_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).ok();
+        let result: Option<(Option<String>, String)> = self
+            .conn
+            .query_row(
+                "SELECT last_seen_id, subscription FROM sessions WHERE session_id = ?1",
+                params![session_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .ok();
 
         if let Some((last_seen_str, sub_json)) = result {
             // Update last_active
@@ -481,7 +518,7 @@ impl NotificationStorage {
 
             let last_seen = last_seen_str.and_then(|s| Ulid::from_string(&s).ok());
             let subscription = Subscription::from_json(&sub_json).unwrap_or_default();
-            
+
             Ok((last_seen, subscription))
         } else {
             // Create new session
@@ -489,7 +526,7 @@ impl NotificationStorage {
                 "INSERT INTO sessions (session_id, subscription, created_at, last_active) VALUES (?1, ?2, ?3, ?4)",
                 params![session_id, "{}", &now, &now],
             )?;
-            
+
             Ok((None, Subscription::default()))
         }
     }
@@ -497,39 +534,35 @@ impl NotificationStorage {
     /// Update session's subscription
     pub fn update_subscription(&self, session_id: &str, subscription: &Subscription) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        
+
         // Ensure session exists
         let _ = self.get_or_create_session(session_id)?;
-        
+
         self.conn.execute(
             "UPDATE sessions SET subscription = ?1, last_active = ?2 WHERE session_id = ?3",
             params![subscription.to_json(), &now, session_id],
         )?;
-        
+
         Ok(())
     }
 
     /// Mark notifications as seen for a session (update cursor)
     pub fn mark_seen(&self, session_id: &str, last_seen_id: &Ulid) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        
+
         // Ensure session exists
         let _ = self.get_or_create_session(session_id)?;
-        
+
         self.conn.execute(
             "UPDATE sessions SET last_seen_id = ?1, last_active = ?2 WHERE session_id = ?3",
             params![last_seen_id.to_string(), &now, session_id],
         )?;
-        
+
         Ok(())
     }
 
     /// Get new notifications for a session (respecting its subscription)
-    pub fn get_for_session(
-        &self,
-        session_id: &str,
-        limit: usize,
-    ) -> Result<Vec<Notification>> {
+    pub fn get_for_session(&self, session_id: &str, limit: usize) -> Result<Vec<Notification>> {
         let (last_seen, subscription) = self.get_or_create_session(session_id)?;
 
         // Build query based on last_seen cursor
@@ -549,7 +582,8 @@ impl NotificationStorage {
         sql.push_str(" ORDER BY id ASC LIMIT ?");
         params_vec.push(Box::new(limit as i64));
 
-        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
 
         let mut stmt = self.conn.prepare(&sql)?;
         let all_notifications: Vec<Notification> = stmt
@@ -580,7 +614,10 @@ impl NotificationStorage {
 
         // Category filter
         if !subscription.categories.is_empty() {
-            let placeholders: Vec<String> = subscription.categories.iter().enumerate()
+            let placeholders: Vec<String> = subscription
+                .categories
+                .iter()
+                .enumerate()
                 .map(|(i, _)| format!("?{}", params_vec.len() + i + 1))
                 .collect();
             sql.push_str(&format!(" AND category IN ({})", placeholders.join(",")));
@@ -595,9 +632,12 @@ impl NotificationStorage {
             params_vec.push(Box::new(min_p as i32));
         }
 
-        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
 
-        let count: i64 = self.conn.query_row(&sql, params_refs.as_slice(), |row| row.get(0))?;
+        let count: i64 = self
+            .conn
+            .query_row(&sql, params_refs.as_slice(), |row| row.get(0))?;
         Ok(count as usize)
     }
 
@@ -610,28 +650,31 @@ impl NotificationStorage {
     pub fn is_onboarding_shown(&self, session_id: &str) -> Result<bool> {
         // Ensure session exists
         let _ = self.get_or_create_session(session_id)?;
-        
-        let shown: i64 = self.conn.query_row(
-            "SELECT onboarding_shown FROM sessions WHERE session_id = ?1",
-            params![session_id],
-            |row| row.get(0),
-        ).unwrap_or(0);
-        
+
+        let shown: i64 = self
+            .conn
+            .query_row(
+                "SELECT onboarding_shown FROM sessions WHERE session_id = ?1",
+                params![session_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+
         Ok(shown != 0)
     }
 
     /// Mark onboarding as shown for this session
     pub fn set_onboarding_shown(&self, session_id: &str) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        
+
         // Ensure session exists
         let _ = self.get_or_create_session(session_id)?;
-        
+
         self.conn.execute(
             "UPDATE sessions SET onboarding_shown = 1, last_active = ?1 WHERE session_id = ?2",
             params![&now, session_id],
         )?;
-        
+
         Ok(())
     }
 
@@ -652,28 +695,29 @@ impl NotificationStorage {
                 |row| row.get(0),
             )?
         };
-        
+
         Ok(count as usize)
     }
 
     /// Global unread count (for CLI, ignores sessions)
     pub fn unread_count(&self) -> Result<usize> {
-        let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM notifications",
-            [],
-            |row| row.get(0),
-        )?;
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM notifications", [], |row| row.get(0))?;
         Ok(count as usize)
     }
 
     /// Acknowledge all for a session (mark everything as seen)
     pub fn acknowledge_all(&self, session_id: &str) -> Result<usize> {
         // Get latest notification ID
-        let latest: Option<String> = self.conn.query_row(
-            "SELECT id FROM notifications ORDER BY id DESC LIMIT 1",
-            [],
-            |row| row.get(0),
-        ).ok();
+        let latest: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT id FROM notifications ORDER BY id DESC LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
 
         if let Some(latest_id) = latest {
             if let Ok(ulid) = Ulid::from_string(&latest_id) {
@@ -682,7 +726,7 @@ impl NotificationStorage {
                 return Ok(count);
             }
         }
-        
+
         Ok(0)
     }
 
@@ -701,11 +745,12 @@ impl NotificationStorage {
         let mut stmt = self.conn.prepare(
             "SELECT category, COUNT(*) as cnt FROM notifications GROUP BY category ORDER BY cnt DESC"
         )?;
-        
-        let categories = stmt.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as usize))
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+
+        let categories = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as usize))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(categories)
     }
@@ -734,7 +779,8 @@ impl NotificationStorage {
             _ => Priority::Critical,
         };
 
-        let notification_type = NotificationType::from_str(&type_str).unwrap_or(NotificationType::Alert);
+        let notification_type =
+            NotificationType::from_str(&type_str).unwrap_or(NotificationType::Alert);
 
         let fact_id = fact_id_str.and_then(|s| Ulid::from_string(&s).ok());
 
@@ -810,9 +856,24 @@ mod tests {
         let storage = NotificationStorage::in_memory().unwrap();
 
         // Add mixed notifications
-        storage.add(&Notification::for_new_fact(Ulid::new(), "@products/alpha", "Alpha", "local")).unwrap();
-        storage.add(&Notification::for_ci("Build OK", "Success", Priority::Normal)).unwrap();
-        storage.add(&Notification::for_security("Vuln found", "Critical CVE")).unwrap();
+        storage
+            .add(&Notification::for_new_fact(
+                Ulid::new(),
+                "@products/alpha",
+                "Alpha",
+                "local",
+            ))
+            .unwrap();
+        storage
+            .add(&Notification::for_ci(
+                "Build OK",
+                "Success",
+                Priority::Normal,
+            ))
+            .unwrap();
+        storage
+            .add(&Notification::for_security("Vuln found", "Critical CVE"))
+            .unwrap();
 
         // Subscribe only to facts category
         let sub = Subscription::default().categories(vec![Category::Facts]);
@@ -828,9 +889,30 @@ mod tests {
         let storage = NotificationStorage::in_memory().unwrap();
 
         // Add notifications with different paths
-        storage.add(&Notification::for_new_fact(Ulid::new(), "@products/alpha/api", "API", "local")).unwrap();
-        storage.add(&Notification::for_new_fact(Ulid::new(), "@products/beta/api", "Beta API", "local")).unwrap();
-        storage.add(&Notification::for_new_fact(Ulid::new(), "@docs/readme", "Readme", "local")).unwrap();
+        storage
+            .add(&Notification::for_new_fact(
+                Ulid::new(),
+                "@products/alpha/api",
+                "API",
+                "local",
+            ))
+            .unwrap();
+        storage
+            .add(&Notification::for_new_fact(
+                Ulid::new(),
+                "@products/beta/api",
+                "Beta API",
+                "local",
+            ))
+            .unwrap();
+        storage
+            .add(&Notification::for_new_fact(
+                Ulid::new(),
+                "@docs/readme",
+                "Readme",
+                "local",
+            ))
+            .unwrap();
 
         // Subscribe only to @products/alpha
         let sub = Subscription::default().paths(vec!["@products/alpha".to_string()]);
@@ -838,7 +920,11 @@ mod tests {
 
         let pending = storage.get_for_session("session1", 10).unwrap();
         assert_eq!(pending.len(), 1);
-        assert!(pending[0].path.as_ref().unwrap().starts_with("@products/alpha"));
+        assert!(pending[0]
+            .path
+            .as_ref()
+            .unwrap()
+            .starts_with("@products/alpha"));
     }
 
     #[test]
@@ -846,9 +932,19 @@ mod tests {
         let storage = NotificationStorage::in_memory().unwrap();
 
         // Add mixed priority
-        storage.add(&Notification::for_ci("Normal build", "ok", Priority::Normal)).unwrap();
-        storage.add(&Notification::for_ci("High build", "warn", Priority::High)).unwrap();
-        storage.add(&Notification::for_security("Critical!", "CVE")).unwrap();
+        storage
+            .add(&Notification::for_ci(
+                "Normal build",
+                "ok",
+                Priority::Normal,
+            ))
+            .unwrap();
+        storage
+            .add(&Notification::for_ci("High build", "warn", Priority::High))
+            .unwrap();
+        storage
+            .add(&Notification::for_security("Critical!", "CVE"))
+            .unwrap();
 
         // Subscribe to high+ only
         let sub = Subscription::default().priority_min(Priority::High);
@@ -863,9 +959,15 @@ mod tests {
     fn test_list_categories() {
         let storage = NotificationStorage::in_memory().unwrap();
 
-        storage.add(&Notification::for_new_fact(Ulid::new(), "@a", "A", "local")).unwrap();
-        storage.add(&Notification::for_new_fact(Ulid::new(), "@b", "B", "local")).unwrap();
-        storage.add(&Notification::for_ci("CI", "ok", Priority::Normal)).unwrap();
+        storage
+            .add(&Notification::for_new_fact(Ulid::new(), "@a", "A", "local"))
+            .unwrap();
+        storage
+            .add(&Notification::for_new_fact(Ulid::new(), "@b", "B", "local"))
+            .unwrap();
+        storage
+            .add(&Notification::for_ci("CI", "ok", Priority::Normal))
+            .unwrap();
 
         let cats = storage.list_categories().unwrap();
         assert_eq!(cats.len(), 2);

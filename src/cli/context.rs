@@ -45,9 +45,9 @@ pub fn run(args: ContextArgs) -> Result<()> {
 
 fn show_context() -> Result<()> {
     let config = Config::load()?;
-    
+
     println!("📍 Current Context\n");
-    
+
     if let Some(url) = &config.server.url {
         if let Some(kb) = &config.server.default_kb {
             println!("   Mode:   Remote");
@@ -65,18 +65,18 @@ fn show_context() -> Result<()> {
         println!("   Mode:   Local");
         println!("   DB:     {}", config.data_dir().display());
     }
-    
+
     println!("\n💡 Commands:");
     println!("   meh context set http://server:3000/kb-slug  # Use remote");
     println!("   meh context set local                       # Use local");
     println!("   meh context clear                           # Clear remote");
-    
+
     Ok(())
 }
 
 fn set_context(context: &str) -> Result<()> {
     let mut config = Config::load()?;
-    
+
     if context == "local" {
         // Switch to local
         config.server.url = None;
@@ -86,28 +86,28 @@ fn set_context(context: &str) -> Result<()> {
         println!("   DB: {}", config.data_dir().display());
         return Ok(());
     }
-    
+
     // Parse URL/kb-slug
     // Formats:
     //   http://localhost:3000/my-kb -> server=http://localhost:3000, kb=my-kb
     //   my-kb -> uses existing server URL, sets kb=my-kb
-    
+
     if context.starts_with("http://") || context.starts_with("https://") {
         // Full URL with KB slug
         let url = url::Url::parse(context)?;
         let path = url.path().trim_start_matches('/');
-        
+
         if path.is_empty() {
             bail!("URL must include KB slug: {}/KB_SLUG", context);
         }
-        
+
         // Extract server base URL and KB slug
         let mut base_url = url.clone();
         base_url.set_path("");
-        
+
         config.server.url = Some(base_url.to_string().trim_end_matches('/').to_string());
         config.server.default_kb = Some(path.to_string());
-        
+
         save_config(&config)?;
         println!("✅ Remote context set");
         println!("   Server: {}", config.server.url.as_ref().unwrap());
@@ -117,17 +117,17 @@ fn set_context(context: &str) -> Result<()> {
         if config.server.url.is_none() {
             bail!(
                 "No server configured. Use full URL:\n\
-                 meh context set http://localhost:3000/{}", 
+                 meh context set http://localhost:3000/{}",
                 context
             );
         }
-        
+
         config.server.default_kb = Some(context.to_string());
         save_config(&config)?;
         println!("✅ KB changed to: {}", context);
         println!("   Server: {}", config.server.url.as_ref().unwrap());
     }
-    
+
     Ok(())
 }
 
@@ -136,10 +136,10 @@ fn clear_context() -> Result<()> {
     config.server.url = None;
     config.server.default_kb = None;
     save_config(&config)?;
-    
+
     println!("✅ Remote context cleared");
     println!("   Now using local: {}", config.data_dir().display());
-    
+
     Ok(())
 }
 
@@ -155,7 +155,7 @@ fn save_config(config: &Config) -> Result<()> {
             Some(global)
         })
         .unwrap_or_else(|| PathBuf::from(".meh/config.toml"));
-    
+
     config.save_to(&path)?;
     Ok(())
 }

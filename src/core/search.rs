@@ -15,25 +15,25 @@ use super::storage::Storage;
 pub struct SearchQuery {
     /// Full-text query
     pub text: Option<String>,
-    
+
     /// Path prefix filter
     pub path_prefix: Option<String>,
-    
+
     /// Required tags (AND logic)
     pub tags: Vec<String>,
-    
+
     /// Excluded tags
     pub not_tags: Vec<String>,
-    
+
     /// Minimum trust score
     pub min_trust: Option<f32>,
-    
+
     /// Include deprecated facts
     pub include_deprecated: bool,
-    
+
     /// Maximum results
     pub limit: usize,
-    
+
     /// Token budget (for AI context)
     pub token_budget: Option<usize>,
 }
@@ -85,7 +85,7 @@ pub struct SearchResult {
 pub fn search(storage: &Storage, query: &SearchQuery) -> Result<Vec<SearchResult>> {
     // TODO: Implement full search with all filters
     // For now, just use basic FTS search
-    
+
     let text = query.text.as_deref().unwrap_or("*");
     let facts = storage.search(text, query.limit as i64)?;
 
@@ -135,7 +135,7 @@ fn estimate_tokens(fact: &Fact) -> usize {
     let title_tokens = fact.title.len() / 4;
     let path_tokens = fact.path.len() / 4;
     let overhead = 20; // Metadata overhead
-    
+
     content_tokens + title_tokens + path_tokens + overhead
 }
 
@@ -163,7 +163,7 @@ mod tests {
     fn test_estimate_tokens() {
         let mut fact = Fact::new("@test", "Title", "This is content.");
         fact.generate_summary(100);
-        
+
         let tokens = estimate_tokens(&fact);
         assert!(tokens > 0);
     }

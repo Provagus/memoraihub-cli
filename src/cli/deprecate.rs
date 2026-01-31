@@ -61,13 +61,16 @@ pub fn run(args: DeprecateArgs) -> Result<()> {
 fn find_fact(storage: &Storage, target: &str) -> Result<Fact> {
     if target.starts_with("meh-") {
         let id_str = target.trim_start_matches("meh-");
-        let id = Ulid::from_string(id_str)
-            .map_err(|_| anyhow::anyhow!("Invalid meh ID: {}", target))?;
-        storage.get_by_id(&id)?
+        let id =
+            Ulid::from_string(id_str).map_err(|_| anyhow::anyhow!("Invalid meh ID: {}", target))?;
+        storage
+            .get_by_id(&id)?
             .ok_or_else(|| anyhow::anyhow!("Fact not found: {}", target))
     } else {
         let facts = storage.get_by_path(target)?;
-        facts.into_iter().next()
+        facts
+            .into_iter()
+            .next()
             .ok_or_else(|| anyhow::anyhow!("Fact not found: {}", target))
     }
 }
@@ -83,9 +86,7 @@ fn find_meh_dir() -> Result<PathBuf> {
         }
 
         if !current.pop() {
-            bail!(
-                "Not a meh repository (or any parent directory). Run 'meh init' first."
-            );
+            bail!("Not a meh repository (or any parent directory). Run 'meh init' first.");
         }
     }
 }

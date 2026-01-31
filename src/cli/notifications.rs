@@ -86,19 +86,23 @@ pub fn execute(args: NotificationsArgs, config: &Config) -> Result<()> {
         Some(NotificationsCommand::Clear { keep_days }) => execute_clear(&storage, keep_days),
         Some(NotificationsCommand::Count) => execute_count(&storage, args.json),
         Some(NotificationsCommand::Categories) => execute_categories(&storage, args.json),
-        Some(NotificationsCommand::Subscribe { categories, paths, priority, show }) => {
-            execute_subscribe(&storage, categories, paths, priority, show, args.json)
-        }
+        Some(NotificationsCommand::Subscribe {
+            categories,
+            paths,
+            priority,
+            show,
+        }) => execute_subscribe(&storage, categories, paths, priority, show, args.json),
         None => execute_list(&storage, args),
     }
 }
 
 fn open_notification_storage(config: &Config) -> Result<NotificationStorage> {
     let data_dir = config.data_dir();
-    let db_path = data_dir.parent()
+    let db_path = data_dir
+        .parent()
         .map(|p| p.join("notifications.db"))
         .unwrap_or_else(|| data_dir.with_extension("notifications.db"));
-    
+
     NotificationStorage::open(&db_path)
 }
 
@@ -111,7 +115,8 @@ fn execute_list(storage: &NotificationStorage, args: NotificationsArgs) -> Resul
     };
 
     // Apply additional filters
-    let pending: Vec<_> = pending.into_iter()
+    let pending: Vec<_> = pending
+        .into_iter()
         .filter(|n| {
             // Category filter
             if let Some(ref cat) = args.category {
@@ -192,15 +197,15 @@ fn execute_list(storage: &NotificationStorage, args: NotificationsArgs) -> Resul
             notif.category.as_str(),
             time_str
         );
-        
+
         if !notif.summary.is_empty() {
             println!("   {}", notif.summary);
         }
-        
+
         if let Some(path) = &notif.path {
             println!("   📁 {}", path);
         }
-        
+
         println!("   ID: {}\n", notif.id);
     }
 
@@ -223,7 +228,10 @@ fn execute_ack(storage: &NotificationStorage) -> Result<()> {
 
 fn execute_clear(storage: &NotificationStorage, keep_days: i64) -> Result<()> {
     let cleared = storage.clear_old(keep_days)?;
-    println!("✓ Cleared {} old notification(s) (kept last {} days)", cleared, keep_days);
+    println!(
+        "✓ Cleared {} old notification(s) (kept last {} days)",
+        cleared, keep_days
+    );
     Ok(())
 }
 
@@ -233,11 +241,14 @@ fn execute_count(storage: &NotificationStorage, json: bool) -> Result<()> {
     let total = storage.unread_count()?;
 
     if json {
-        println!("{}", serde_json::json!({
-            "pending": pending,
-            "critical": critical,
-            "total": total,
-        }));
+        println!(
+            "{}",
+            serde_json::json!({
+                "pending": pending,
+                "critical": critical,
+                "total": total,
+            })
+        );
     } else {
         println!("📬 Notifications:");
         println!("   New for you: {}", pending);
@@ -282,7 +293,7 @@ fn execute_subscribe(
     if show {
         // Show current subscription
         let (_, sub) = storage.get_or_create_session(CLI_SESSION_ID)?;
-        
+
         if json {
             println!("{}", sub.to_json());
         } else {
@@ -319,10 +330,7 @@ fn execute_subscribe(
     }
 
     if let Some(ps) = paths {
-        let path_list: Vec<String> = ps
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .collect();
+        let path_list: Vec<String> = ps.split(',').map(|s| s.trim().to_string()).collect();
         sub = sub.paths(path_list);
     }
 

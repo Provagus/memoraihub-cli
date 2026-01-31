@@ -110,9 +110,7 @@ fn find_meh_dir() -> Result<PathBuf> {
         }
 
         if !current.pop() {
-            bail!(
-                "Not a meh repository (or any parent directory). Run 'meh init' first."
-            );
+            bail!("Not a meh repository (or any parent directory). Run 'meh init' first.");
         }
     }
 }

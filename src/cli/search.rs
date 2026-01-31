@@ -69,11 +69,11 @@ pub struct SearchArgs {
     /// Output format (pretty, json, compact)
     #[arg(short, long, default_value = "pretty")]
     pub format: String,
-    
+
     /// Use remote server instead of local database
     #[arg(long, env = "MEH_SERVER_URL")]
     pub server: Option<String>,
-    
+
     /// Knowledge base slug (for remote operations)
     #[arg(long, env = "MEH_KB")]
     pub kb: Option<String>,
@@ -82,11 +82,7 @@ pub struct SearchArgs {
 pub async fn run(args: SearchArgs) -> Result<()> {
     // Load config and create KnowledgeBase (local or remote)
     let config = crate::config::Config::load()?;
-    let kb = KnowledgeBase::from_args(
-        args.server.as_deref(),
-        args.kb.as_deref(),
-        &config,
-    )?;
+    let kb = KnowledgeBase::from_args(args.server.as_deref(), args.kb.as_deref(), &config)?;
 
     // Execute search using unified abstraction
     let facts = kb.search(&args.query, args.limit).await?;

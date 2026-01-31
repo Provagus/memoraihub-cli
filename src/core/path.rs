@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 pub struct Path {
     /// Path segments (e.g., ["@products", "alpha", "api", "timeout"])
     segments: Vec<String>,
-    
+
     /// Original string representation
     raw: String,
 }
@@ -42,14 +42,14 @@ impl Path {
     /// ```
     pub fn parse(s: &str) -> Result<Self> {
         let s = s.trim();
-        
+
         if s.is_empty() {
             bail!("Path cannot be empty");
         }
 
         // Normalize: remove trailing slash, handle leading slash
         let normalized = s.trim_start_matches('/').trim_end_matches('/');
-        
+
         if normalized.is_empty() {
             // Root path
             return Ok(Self {
@@ -83,9 +83,9 @@ impl Path {
         }
 
         // Allow: alphanumeric, dash, underscore, @ (for reserved prefixes)
-        let valid = segment.chars().all(|c| {
-            c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '@'
-        });
+        let valid = segment
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '@');
 
         if !valid {
             bail!("Invalid characters in path segment: {}", segment);
@@ -151,7 +151,7 @@ impl Path {
     /// Join with another path or segment
     pub fn join(&self, other: &str) -> Result<Path> {
         let mut new_segments = self.segments.clone();
-        
+
         for segment in other.split('/').filter(|s| !s.is_empty()) {
             Self::validate_segment(segment)?;
             new_segments.push(segment.to_string());
@@ -188,14 +188,14 @@ impl Path {
         match (path.first(), pattern.first()) {
             // Both empty = match
             (None, None) => true,
-            
+
             // Pattern empty but path has more = no match
             (Some(_), None) => false,
-            
+
             // Path empty but pattern has more
             (None, Some(&"**")) => Self::match_segments(path, &pattern[1..]),
             (None, Some(_)) => false,
-            
+
             // ** matches zero or more segments
             (Some(_), Some(&"**")) => {
                 // Try matching ** with zero segments
@@ -205,12 +205,10 @@ impl Path {
                 // Try matching ** with one segment and continue
                 Self::match_segments(&path[1..], pattern)
             }
-            
+
             // * matches exactly one segment
-            (Some(_), Some(&"*")) => {
-                Self::match_segments(&path[1..], &pattern[1..])
-            }
-            
+            (Some(_), Some(&"*")) => Self::match_segments(&path[1..], &pattern[1..]),
+
             // Literal match
             (Some(p), Some(pat)) => {
                 if p == *pat {
@@ -321,9 +319,9 @@ mod tests {
     #[test]
     fn test_deep_path() {
         // Path depth is unlimited
-        let path = Path::parse(
-            "@products/alpha/api/v2/commands/users/create/validation/email/format"
-        ).unwrap();
+        let path =
+            Path::parse("@products/alpha/api/v2/commands/users/create/validation/email/format")
+                .unwrap();
         assert_eq!(path.depth(), 10);
     }
 
@@ -356,7 +354,7 @@ mod tests {
     fn test_name() {
         let path = Path::parse("@products/alpha/timeout").unwrap();
         assert_eq!(path.name(), Some("timeout"));
-        
+
         let root = Path::parse("/").unwrap();
         assert_eq!(root.name(), None);
     }
@@ -406,7 +404,7 @@ mod tests {
     fn test_display() {
         let path = Path::parse("@meh/todo/item").unwrap();
         assert_eq!(format!("{}", path), "@meh/todo/item");
-        
+
         let root = Path::parse("/").unwrap();
         assert_eq!(format!("{}", root), "/");
     }
@@ -427,10 +425,10 @@ mod tests {
     fn test_reserved_prefix() {
         let reserved = Path::parse("@products/alpha").unwrap();
         assert!(reserved.is_reserved_prefix());
-        
+
         let not_reserved = Path::parse("@meh/todo").unwrap();
         assert!(!not_reserved.is_reserved_prefix());
-        
+
         let custom = Path::parse("@custom/path").unwrap();
         assert!(!custom.is_reserved_prefix());
     }

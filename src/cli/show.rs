@@ -65,11 +65,7 @@ pub struct ShowArgs {
 pub async fn run(args: ShowArgs) -> Result<()> {
     // Load config and create KnowledgeBase (local or remote)
     let config = crate::config::Config::load()?;
-    let kb = KnowledgeBase::from_args(
-        args.server.as_deref(),
-        args.kb.as_deref(),
-        &config,
-    )?;
+    let kb = KnowledgeBase::from_args(args.server.as_deref(), args.kb.as_deref(), &config)?;
 
     // Get fact by path or ID using unified abstraction
     let fact = kb.get_fact(&args.target).await?;
@@ -92,7 +88,10 @@ pub async fn run(args: ShowArgs) -> Result<()> {
         } else {
             // For local, we'd need to access storage directly
             // This is a limitation of the current abstraction
-            println!("\n⚠️  Use local access for history: meh show {} --with-history", args.target);
+            println!(
+                "\n⚠️  Use local access for history: meh show {} --with-history",
+                args.target
+            );
         }
     }
 

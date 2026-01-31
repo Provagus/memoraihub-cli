@@ -19,7 +19,7 @@ pub struct TrustConfig {
     pub ai_base: f32,
     /// Base trust for system authors
     pub system_base: f32,
-    
+
     /// Trust multiplier for local source
     pub source_local: f32,
     /// Trust multiplier for company source
@@ -28,14 +28,14 @@ pub struct TrustConfig {
     pub source_global: f32,
     /// Trust multiplier for npm source
     pub source_npm: f32,
-    
+
     /// Days until trust starts decaying
     pub decay_start_days: i64,
     /// Decay rate per day after decay_start_days
     pub decay_rate: f32,
     /// Minimum trust after decay
     pub decay_floor: f32,
-    
+
     /// Boost for each confirmation
     pub confirmation_boost: f32,
     /// Penalty for being superseded
@@ -49,18 +49,18 @@ impl Default for TrustConfig {
             human_base: 0.8,
             ai_base: 0.5,
             system_base: 0.6,
-            
+
             // Source multipliers
             source_local: 1.0,
             source_company: 0.95,
             source_global: 0.7,
             source_npm: 0.6,
-            
+
             // Decay settings
-            decay_start_days: 90,   // 3 months
-            decay_rate: 0.005,      // 0.5% per day
-            decay_floor: 0.2,       // Never go below 20%
-            
+            decay_start_days: 90, // 3 months
+            decay_rate: 0.005,    // 0.5% per day
+            decay_floor: 0.2,     // Never go below 20%
+
             // Boost/penalty
             confirmation_boost: 0.1,
             superseded_penalty: 0.3,
@@ -105,14 +105,14 @@ impl TrustCalculator {
     /// Calculate trust decay based on age
     pub fn apply_decay(&self, trust: f32, created_at: DateTime<Utc>) -> f32 {
         let age_days = (Utc::now() - created_at).num_days();
-        
+
         if age_days <= self.config.decay_start_days {
             return trust;
         }
 
         let decay_days = age_days - self.config.decay_start_days;
         let decay = decay_days as f32 * self.config.decay_rate;
-        
+
         (trust - decay).max(self.config.decay_floor)
     }
 

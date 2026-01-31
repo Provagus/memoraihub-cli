@@ -21,27 +21,24 @@ pub struct RemoteSearchOptions<'a> {
 /// Execute remote search
 pub async fn remote_search(opts: RemoteSearchOptions<'_>) -> Result<()> {
     let config = Config::load()?;
-    
+
     let client = RemoteClient::new(
         opts.server_url,
         config.server.token.clone(),
         config.server.api_key.clone(),
         config.server.timeout_secs,
     )?;
-    
-    let results = client.search(
-        opts.kb_slug,
-        opts.query,
-        opts.limit,
-        opts.path_filter,
-    ).await?;
-    
+
+    let results = client
+        .search(opts.kb_slug, opts.query, opts.limit, opts.path_filter)
+        .await?;
+
     match opts.format {
         "json" => print_json(&results),
         "compact" => print_compact(&results),
         _ => print_pretty(&results, opts.kb_slug),
     }
-    
+
     Ok(())
 }
 
@@ -50,21 +47,22 @@ fn print_pretty(facts: &[RemoteFact], kb_slug: &str) {
         println!("No results found in '{}'.", kb_slug);
         return;
     }
-    
+
     println!("{} results in {}", facts.len(), kb_slug.cyan());
     println!("{}", "─".repeat(60));
-    
+
     for fact in facts {
         println!();
         println!("{} {}", "##".dimmed(), fact.path.cyan().bold());
         println!("   {}", fact.title);
-        
+
         if let Some(summary) = &fact.summary {
             println!("   {}", summary.dimmed());
         }
-        
-        println!("   {} {} | trust: {:.2}", 
-            "ID:".dimmed(), 
+
+        println!(
+            "   {} {} | trust: {:.2}",
+            "ID:".dimmed(),
             fact.id.dimmed(),
             fact.trust_score
         );
@@ -97,27 +95,27 @@ pub struct RemoteAddOptions<'a> {
 /// Execute remote add
 pub async fn remote_add(opts: RemoteAddOptions<'_>) -> Result<()> {
     let config = Config::load()?;
-    
+
     let client = RemoteClient::new(
         opts.server_url,
         config.server.token.clone(),
         config.server.api_key.clone(),
         config.server.timeout_secs,
     )?;
-    
+
     let req = crate::remote::CreateFactRequest {
         path: opts.path.to_string(),
         title: opts.title.to_string(),
         content: opts.content.to_string(),
         tags: opts.tags,
     };
-    
+
     let fact = client.create_fact(opts.kb_slug, req).await?;
-    
+
     println!("{} Created fact: {}", "✓".green(), fact.id);
     println!("  Path: {}", fact.path.cyan());
     println!("  KB:   {}", opts.kb_slug);
-    
+
     Ok(())
 }
 
@@ -132,16 +130,16 @@ pub struct RemoteShowOptions<'a> {
 /// Execute remote show
 pub async fn remote_show(opts: RemoteShowOptions<'_>) -> Result<()> {
     let config = Config::load()?;
-    
+
     let client = RemoteClient::new(
         opts.server_url,
         config.server.token.clone(),
         config.server.api_key.clone(),
         config.server.timeout_secs,
     )?;
-    
+
     let fact = client.get_fact(opts.kb_slug, opts.fact_id).await?;
-    
+
     match opts.format {
         "json" => {
             let json = serde_json::to_string_pretty(&fact)?;
@@ -160,11 +158,11 @@ pub async fn remote_show(opts: RemoteShowOptions<'_>) -> Result<()> {
             if let Some(created_at) = &fact.created_at {
                 println!("Created: {}", created_at);
             }
-            
+
             if !fact.tags.is_empty() {
                 println!("Tags:    {}", fact.tags.join(", "));
             }
-            
+
             if let Some(content) = &fact.content {
                 println!();
                 println!("{}", "Content".bold());
@@ -173,7 +171,7 @@ pub async fn remote_show(opts: RemoteShowOptions<'_>) -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -188,21 +186,21 @@ pub struct RemoteBrowseOptions<'a> {
 /// Execute remote browse (ls)
 pub async fn remote_browse(opts: RemoteBrowseOptions<'_>) -> Result<()> {
     let config = Config::load()?;
-    
+
     let client = RemoteClient::new(
         opts.server_url,
         config.server.token.clone(),
         config.server.api_key.clone(),
         config.server.timeout_secs,
     )?;
-    
+
     let nodes = client.browse(opts.kb_slug, opts.path, opts.depth).await?;
-    
+
     if nodes.is_empty() {
         println!("No paths found.");
         return Ok(());
     }
-    
+
     for node in &nodes {
         let suffix = if node.has_children { "/" } else { "" };
         let count = if node.fact_count > 0 {
@@ -210,9 +208,9 @@ pub async fn remote_browse(opts: RemoteBrowseOptions<'_>) -> Result<()> {
         } else {
             String::new()
         };
-        
+
         println!("{}{}{}", node.path.cyan(), suffix, count);
     }
-    
+
     Ok(())
 }

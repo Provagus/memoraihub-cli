@@ -62,13 +62,21 @@ pub struct PendingWrite {
 }
 
 impl PendingWrite {
-    pub fn new_add(target_kb: &str, target_url: &str, path: &str, content: &str, tags: Vec<String>) -> Self {
-        let title = content.lines().next()
+    pub fn new_add(
+        target_kb: &str,
+        target_url: &str,
+        path: &str,
+        content: &str,
+        tags: Vec<String>,
+    ) -> Self {
+        let title = content
+            .lines()
+            .next()
             .unwrap_or(content)
             .chars()
             .take(50)
             .collect();
-        
+
         Self {
             id: Ulid::new(),
             target_kb: target_kb.to_string(),
@@ -85,7 +93,13 @@ impl PendingWrite {
         }
     }
 
-    pub fn new_correct(target_kb: &str, target_url: &str, path: &str, content: &str, supersedes: &str) -> Self {
+    pub fn new_correct(
+        target_kb: &str,
+        target_url: &str,
+        path: &str,
+        content: &str,
+        supersedes: &str,
+    ) -> Self {
         Self {
             id: Ulid::new(),
             target_kb: target_kb.to_string(),
@@ -102,7 +116,13 @@ impl PendingWrite {
         }
     }
 
-    pub fn new_extend(target_kb: &str, target_url: &str, path: &str, content: &str, extends: &str) -> Self {
+    pub fn new_extend(
+        target_kb: &str,
+        target_url: &str,
+        path: &str,
+        content: &str,
+        extends: &str,
+    ) -> Self {
         Self {
             id: Ulid::new(),
             target_kb: target_kb.to_string(),
@@ -119,7 +139,12 @@ impl PendingWrite {
         }
     }
 
-    pub fn new_deprecate(target_kb: &str, target_url: &str, fact_id: &str, reason: Option<&str>) -> Self {
+    pub fn new_deprecate(
+        target_kb: &str,
+        target_url: &str,
+        fact_id: &str,
+        reason: Option<&str>,
+    ) -> Self {
         Self {
             id: Ulid::new(),
             target_kb: target_kb.to_string(),
@@ -145,14 +170,13 @@ pub struct PendingQueue {
 impl PendingQueue {
     /// Open or create the pending queue database
     pub fn open(path: &Path) -> Result<Self> {
-        let conn = Connection::open(path)
-            .context("Failed to open pending queue database")?;
-        
+        let conn = Connection::open(path).context("Failed to open pending queue database")?;
+
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")?;
-        
+
         let queue = Self { conn };
         queue.init_schema()?;
-        
+
         Ok(queue)
     }
 
@@ -184,7 +208,7 @@ impl PendingQueue {
             
             CREATE INDEX IF NOT EXISTS idx_pending_target_kb ON pending_writes(target_kb);
             CREATE INDEX IF NOT EXISTS idx_pending_created ON pending_writes(created_at);
-            "#
+            "#,
         )?;
         Ok(())
     }
@@ -192,7 +216,7 @@ impl PendingQueue {
     /// Add a pending write to the queue
     pub fn enqueue(&self, write: &PendingWrite) -> Result<()> {
         let tags_json = serde_json::to_string(&write.tags)?;
-        
+
         self.conn.execute(
             r#"
             INSERT INTO pending_writes (
@@ -215,20 +239,18 @@ impl PendingQueue {
                 write.created_at.to_rfc3339(),
             ],
         )?;
-        
+
         Ok(())
     }
 
     /// Get a pending write by ID
     pub fn get(&self, id: &Ulid) -> Result<Option<PendingWrite>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT * FROM pending_writes WHERE id = ?1"
-        )?;
-        
-        let result = stmt.query_row([id.to_string()], |row| {
-            Self::row_to_pending_write(row)
-        });
-        
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM pending_writes WHERE id = ?1")?;
+
+        let result = stmt.query_row([id.to_string()], |row| Self::row_to_pending_write(row));
+
         match result {
             Ok(write) => Ok(Some(write)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -238,46 +260,45 @@ impl PendingQueue {
 
     /// List all pending writes
     pub fn list_all(&self) -> Result<Vec<PendingWrite>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT * FROM pending_writes ORDER BY created_at DESC"
-        )?;
-        
-        let writes = stmt.query_map([], |row| Self::row_to_pending_write(row))?
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM pending_writes ORDER BY created_at DESC")?;
+
+        let writes = stmt
+            .query_map([], |row| Self::row_to_pending_write(row))?
             .collect::<Result<Vec<_>, _>>()?;
-        
+
         Ok(writes)
     }
 
     /// List pending writes for a specific KB
     pub fn list_for_kb(&self, kb_name: &str) -> Result<Vec<PendingWrite>> {
         let mut stmt = self.conn.prepare(
-            "SELECT * FROM pending_writes WHERE target_kb = ?1 ORDER BY created_at DESC"
+            "SELECT * FROM pending_writes WHERE target_kb = ?1 ORDER BY created_at DESC",
         )?;
-        
-        let writes = stmt.query_map([kb_name], |row| Self::row_to_pending_write(row))?
+
+        let writes = stmt
+            .query_map([kb_name], |row| Self::row_to_pending_write(row))?
             .collect::<Result<Vec<_>, _>>()?;
-        
+
         Ok(writes)
     }
 
     /// Remove a pending write (after approval or rejection)
     pub fn remove(&self, id: &Ulid) -> Result<bool> {
-        let deleted = self.conn.execute(
-            "DELETE FROM pending_writes WHERE id = ?1",
-            [id.to_string()],
-        )?;
-        
+        let deleted = self
+            .conn
+            .execute("DELETE FROM pending_writes WHERE id = ?1", [id.to_string()])?;
+
         Ok(deleted > 0)
     }
 
     /// Count pending writes
     pub fn count(&self) -> Result<usize> {
-        let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM pending_writes",
-            [],
-            |row| row.get(0),
-        )?;
-        
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM pending_writes", [], |row| row.get(0))?;
+
         Ok(count as usize)
     }
 
@@ -288,7 +309,7 @@ impl PendingQueue {
             [kb_name],
             |row| row.get(0),
         )?;
-        
+
         Ok(count as usize)
     }
 
@@ -297,7 +318,7 @@ impl PendingQueue {
         let write_type_str: String = row.get("write_type")?;
         let tags_json: String = row.get("tags")?;
         let created_str: String = row.get("created_at")?;
-        
+
         Ok(PendingWrite {
             id: Ulid::from_string(&id_str).unwrap_or_else(|_| Ulid::new()),
             target_kb: row.get("target_kb")?,
@@ -330,7 +351,7 @@ mod tests {
     #[test]
     fn test_enqueue_and_list() -> Result<()> {
         let queue = PendingQueue::open_memory()?;
-        
+
         let write = PendingWrite::new_add(
             "company",
             "https://kb.company.com",
@@ -338,21 +359,21 @@ mod tests {
             "My great idea",
             vec!["proposal".to_string()],
         );
-        
+
         queue.enqueue(&write)?;
-        
+
         let all = queue.list_all()?;
         assert_eq!(all.len(), 1);
         assert_eq!(all[0].path, "@project/idea");
         assert_eq!(all[0].target_kb, "company");
-        
+
         Ok(())
     }
 
     #[test]
     fn test_remove() -> Result<()> {
         let queue = PendingQueue::open_memory()?;
-        
+
         let write = PendingWrite::new_add(
             "company",
             "https://kb.company.com",
@@ -361,30 +382,30 @@ mod tests {
             vec![],
         );
         let id = write.id;
-        
+
         queue.enqueue(&write)?;
         assert_eq!(queue.count()?, 1);
-        
+
         queue.remove(&id)?;
         assert_eq!(queue.count()?, 0);
-        
+
         Ok(())
     }
 
     #[test]
     fn test_list_for_kb() -> Result<()> {
         let queue = PendingQueue::open_memory()?;
-        
+
         queue.enqueue(&PendingWrite::new_add("company", "url1", "@a", "A", vec![]))?;
         queue.enqueue(&PendingWrite::new_add("public", "url2", "@b", "B", vec![]))?;
         queue.enqueue(&PendingWrite::new_add("company", "url1", "@c", "C", vec![]))?;
-        
+
         let company = queue.list_for_kb("company")?;
         assert_eq!(company.len(), 2);
-        
+
         let public = queue.list_for_kb("public")?;
         assert_eq!(public.len(), 1);
-        
+
         Ok(())
     }
 }
