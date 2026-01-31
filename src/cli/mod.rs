@@ -7,6 +7,7 @@ use clap::{Parser, Subcommand};
 pub mod add;
 pub mod browse;
 pub mod config;
+pub mod context;
 pub mod correct;
 pub mod deprecate;
 pub mod extend;
@@ -77,6 +78,9 @@ pub enum Commands {
 
     /// Get or set configuration
     Config(config::ConfigArgs),
+
+    /// Manage active context (local or remote KB)
+    Context(context::ContextArgs),
 
     /// Manage notifications
     Notifications(notifications::NotificationsArgs),

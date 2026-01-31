@@ -583,6 +583,11 @@ impl NotificationStorage {
         Ok(count as usize)
     }
 
+    /// Alias for pending_count (used by CLI hint)
+    pub fn count_pending_for_session(&self, session_id: &str) -> Result<usize> {
+        self.pending_count(session_id)
+    }
+
     /// Get critical pending count for a session
     pub fn critical_count(&self, session_id: &str) -> Result<usize> {
         let (last_seen, _) = self.get_or_create_session(session_id)?;

@@ -20,9 +20,12 @@ async fn main() -> Result<()> {
 
     // Parse CLI arguments
     let cli = Cli::parse();
+    
+    // Check if this command should show notifications hint
+    let show_hint = should_show_notifications_hint(&cli.command);
 
     // Run command
-    match cli.command {
+    let result = match cli.command {
         Commands::Add(args) => meh::cli::add::run(args),
         Commands::Show(args) => meh::cli::show::run(args).await,
         Commands::Search(args) => meh::cli::search::run(args).await,
@@ -33,10 +36,54 @@ async fn main() -> Result<()> {
         Commands::Deprecate(args) => meh::cli::deprecate::run(args),
         Commands::Init(args) => meh::cli::init::run(args),
         Commands::Config(args) => meh::cli::config::run(args),
+        Commands::Context(args) => meh::cli::context::run(args),
         Commands::Notifications(args) => run_notifications(args),
         Commands::Stats(args) => meh::cli::stats::execute(args),
         Commands::Serve(args) => run_serve(args).await,
         Commands::Kbs(args) => meh::cli::kbs::execute(args).await,
+    };
+    
+    // Show notifications hint if appropriate
+    if show_hint && result.is_ok() {
+        show_pending_notifications_hint();
+    }
+    
+    result
+}
+
+/// Check if command should show notifications hint
+fn should_show_notifications_hint(command: &Commands) -> bool {
+    !matches!(
+        command,
+        Commands::Serve(_) 
+        | Commands::Notifications(_) 
+        | Commands::Context(_)
+        | Commands::Config(_)
+        | Commands::Init(_)
+    )
+}
+
+/// Show hint about pending notifications (if any)
+fn show_pending_notifications_hint() {
+    // Try to get pending count - don't fail if it doesn't work
+    if let Ok(config) = meh::config::Config::load() {
+        let data_dir = config.data_dir();
+        // Notifications are in notifications.db, not data.db
+        let notifications_db = data_dir.parent()
+            .map(|p| p.join("notifications.db"))
+            .unwrap_or_else(|| data_dir.with_extension("notifications.db"));
+        
+        if notifications_db.exists() {
+            if let Ok(storage) = meh::core::notifications::NotificationStorage::open(&notifications_db) {
+                // Use a consistent session ID for CLI
+                let session_id = "cli-session";
+                if let Ok(pending) = storage.count_pending_for_session(session_id) {
+                    if pending > 0 {
+                        eprintln!("\n📬 {} notification(s) pending (meh notifications)", pending);
+                    }
+                }
+            }
+        }
     }
 }
 
