@@ -1,0 +1,346 @@
+//! Fact - Core data structure
+//!
+//! A fact is the fundamental unit of knowledge in meh.
+//!
+//! # Schema
+//! See `../../plan/DECISIONS_UNIFIED.md` section 9 for schema.
+//!
+//! # Key Properties
+//! - **id**: ULID (sortable, unique)
+//! - **path**: Hierarchical location (e.g., @products/alpha/api/timeout)
+//! - **content**: Markdown content
+//! - **trust_score**: 0.0-1.0 Bayesian trust
+//! - **supersedes**: For append-only corrections
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use ulid::Ulid;
+
+/// Source type for facts
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Source {
+    /// Local storage (your machine)
+    Local,
+    /// Company server
+    Company,
+    /// Global public (memoraihub.io)
+    Global,
+    /// Third-party packages (npm, etc.)
+    Npm,
+}
+
+impl Default for Source {
+    fn default() -> Self {
+        Source::Local
+    }
+}
+
+impl std::fmt::Display for Source {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Source::Local => write!(f, "local"),
+            Source::Company => write!(f, "company"),
+            Source::Global => write!(f, "global"),
+            Source::Npm => write!(f, "npm"),
+        }
+    }
+}
+
+impl std::str::FromStr for Source {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "local" => Ok(Source::Local),
+            "company" => Ok(Source::Company),
+            "global" => Ok(Source::Global),
+            "npm" => Ok(Source::Npm),
+            _ => anyhow::bail!("Unknown source: {}", s),
+        }
+    }
+}
+
+/// Fact status
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Status {
+    /// Active and current
+    #[default]
+    Active,
+    /// Superseded by another fact
+    Superseded,
+    /// Marked as deprecated
+    Deprecated,
+    /// Archived (old, but kept)
+    Archived,
+}
+
+/// Author type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthorType {
+    Human,
+    Ai,
+    System,
+}
+
+impl Default for AuthorType {
+    fn default() -> Self {
+        AuthorType::Ai
+    }
+}
+
+/// Fact type (for append-only operations)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum FactType {
+    /// Original fact
+    #[default]
+    Fact,
+    /// Correction of another fact
+    Correction,
+    /// Extension of another fact
+    Extension,
+    /// Warning/caveat
+    Warning,
+    /// Deprecation notice
+    Deprecation,
+}
+
+/// A fact - the fundamental unit of knowledge
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Fact {
+    /// Unique identifier (ULID)
+    pub id: Ulid,
+
+    /// Hierarchical path (e.g., @products/alpha/api/timeout)
+    pub path: String,
+
+    /// Title (short description)
+    pub title: String,
+
+    /// Full content (Markdown)
+    pub content: String,
+
+    /// Summary (1-3 sentences, auto-generated or manual)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+
+    /// Tags for cross-cutting concerns
+    #[serde(default)]
+    pub tags: Vec<String>,
+
+    /// Source type
+    #[serde(default)]
+    pub source: Source,
+
+    /// Namespace (for multi-tenant)
+    #[serde(default)]
+    pub namespace: String,
+
+    /// Trust score (0.0-1.0)
+    #[serde(default = "default_trust")]
+    pub trust_score: f32,
+
+    /// Status
+    #[serde(default)]
+    pub status: Status,
+
+    /// Fact type
+    #[serde(default)]
+    pub fact_type: FactType,
+
+    /// ID of fact this supersedes (for corrections)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supersedes: Option<Ulid>,
+
+    /// IDs of facts this extends
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extends: Vec<Ulid>,
+
+    /// Author type
+    #[serde(default)]
+    pub author_type: AuthorType,
+
+    /// Author identifier
+    #[serde(default)]
+    pub author_id: String,
+
+    /// Creation timestamp
+    pub created_at: DateTime<Utc>,
+
+    /// Last update timestamp
+    pub updated_at: DateTime<Utc>,
+
+    /// Last access timestamp
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accessed_at: Option<DateTime<Utc>>,
+}
+
+fn default_trust() -> f32 {
+    0.5
+}
+
+impl Fact {
+    /// Create a new fact
+    pub fn new(path: impl Into<String>, title: impl Into<String>, content: impl Into<String>) -> Self {
+        let now = Utc::now();
+        Self {
+            id: Ulid::new(),
+            path: path.into(),
+            title: title.into(),
+            content: content.into(),
+            summary: None,
+            tags: Vec::new(),
+            source: Source::default(),
+            namespace: String::new(),
+            trust_score: 0.5,
+            status: Status::default(),
+            fact_type: FactType::default(),
+            supersedes: None,
+            extends: Vec::new(),
+            author_type: AuthorType::default(),
+            author_id: String::new(),
+            created_at: now,
+            updated_at: now,
+            accessed_at: None,
+        }
+    }
+
+    /// Create a correction of another fact
+    pub fn correction(original: &Fact, new_content: impl Into<String>) -> Self {
+        let mut fact = Fact::new(&original.path, &original.title, new_content);
+        fact.supersedes = Some(original.id);
+        fact.fact_type = FactType::Correction;
+        fact.tags = original.tags.clone();
+        fact
+    }
+
+    /// Create an extension of another fact
+    pub fn extension(original: &Fact, additional_content: impl Into<String>) -> Self {
+        let mut fact = Fact::new(
+            &original.path,
+            format!("{} (extension)", original.title),
+            additional_content,
+        );
+        fact.extends = vec![original.id];
+        fact.fact_type = FactType::Extension;
+        fact
+    }
+
+    /// Set tags
+    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+
+    /// Set source
+    pub fn with_source(mut self, source: Source) -> Self {
+        self.source = source;
+        self
+    }
+
+    /// Set author
+    pub fn with_author(mut self, author_type: AuthorType, author_id: impl Into<String>) -> Self {
+        self.author_type = author_type;
+        self.author_id = author_id.into();
+        self
+    }
+
+    /// Generate summary from content (first sentence or first N chars)
+    pub fn generate_summary(&mut self, max_chars: usize) {
+        let content = self.content.trim();
+        
+        // Try to find first sentence
+        if let Some(end) = content.find(|c| c == '.' || c == '!' || c == '?') {
+            if end < max_chars {
+                self.summary = Some(content[..=end].to_string());
+                return;
+            }
+        }
+
+        // Fallback to first N chars
+        if content.len() <= max_chars {
+            self.summary = Some(content.to_string());
+        } else {
+            let truncated = &content[..max_chars];
+            // Try to break at word boundary
+            if let Some(last_space) = truncated.rfind(' ') {
+                self.summary = Some(format!("{}...", &truncated[..last_space]));
+            } else {
+                self.summary = Some(format!("{}...", truncated));
+            }
+        }
+    }
+
+    /// Get short ID (first 8 chars)
+    pub fn short_id(&self) -> String {
+        self.id.to_string()[..8].to_lowercase()
+    }
+
+    /// Format as meh ID
+    pub fn meh_id(&self) -> String {
+        format!("meh-{}", self.short_id())
+    }
+}
+
+impl std::fmt::Display for Fact {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {}: {}", self.meh_id(), self.path, self.title)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_fact() {
+        let fact = Fact::new(
+            "@products/alpha/api/timeout",
+            "API Timeout",
+            "API timeout is 30 seconds.",
+        );
+
+        assert!(!fact.id.to_string().is_empty());
+        assert_eq!(fact.path, "@products/alpha/api/timeout");
+        assert_eq!(fact.title, "API Timeout");
+        assert_eq!(fact.trust_score, 0.5);
+        assert_eq!(fact.status, Status::Active);
+    }
+
+    #[test]
+    fn test_correction() {
+        let original = Fact::new(
+            "@products/alpha/api/timeout",
+            "API Timeout",
+            "API timeout is 30 seconds.",
+        );
+
+        let correction = Fact::correction(&original, "API timeout is 60 seconds.");
+
+        assert_eq!(correction.supersedes, Some(original.id));
+        assert_eq!(correction.fact_type, FactType::Correction);
+        assert_eq!(correction.path, original.path);
+    }
+
+    #[test]
+    fn test_generate_summary() {
+        let mut fact = Fact::new(
+            "@test",
+            "Test",
+            "This is the first sentence. This is the second.",
+        );
+        fact.generate_summary(100);
+        assert_eq!(fact.summary, Some("This is the first sentence.".to_string()));
+    }
+
+    #[test]
+    fn test_meh_id() {
+        let fact = Fact::new("@test", "Test", "Content");
+        let meh_id = fact.meh_id();
+        assert!(meh_id.starts_with("meh-"));
+        assert_eq!(meh_id.len(), 12); // "meh-" + 8 chars
+    }
+}
