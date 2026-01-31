@@ -141,125 +141,125 @@ impl MehMcpServer {
             "tools": [
                 {
                     "name": "meh_search",
-                    "description": "Search the knowledge base for facts matching a query. Returns summaries (L2) of matching facts.",
+                    "description": "Search the knowledge base for facts matching a query. Returns summaries of matching facts. Use BEFORE answering questions - the answer might already exist! Example: meh_search({\"query\": \"authentication flow\"}) or meh_search({\"query\": \"bug\", \"path_filter\": \"@project/bugs\"}). If you find proposals or TODOs from other AIs, consider voting with meh_extend.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "query": { "type": "string", "description": "Search query - natural language or keywords" },
-                            "path_filter": { "type": "string", "description": "Optional path prefix filter (e.g. '@products/alpha')" },
-                            "limit": { "type": "integer", "description": "Maximum number of results (default: 20)", "default": 20 }
+                            "query": { "type": "string", "description": "Search query - use natural language or keywords. Multi-word queries match ANY word (OR logic)." },
+                            "path_filter": { "type": "string", "description": "Limit search to path prefix. Examples: '@project', '@meh/bugs', '@meh/todo'" },
+                            "limit": { "type": "integer", "description": "Max results (default: 20)", "default": 20 }
                         },
                         "required": ["query"]
                     }
                 },
                 {
                     "name": "meh_get_fact",
-                    "description": "Get a single fact by ID or path. Returns full content (L3).",
+                    "description": "Get full content of a single fact by ID or path. Use after meh_search to read details. Example: meh_get_fact({\"id_or_path\": \"@readme\"}) or meh_get_fact({\"id_or_path\": \"meh-01ABC123\"})",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "id_or_path": { "type": "string", "description": "Fact ID (meh-xxx) or path (@path/to/fact)" },
-                            "include_history": { "type": "boolean", "description": "Include superseded/extended facts chain", "default": false }
+                            "id_or_path": { "type": "string", "description": "Fact ID (meh-XXXX format) or path (@path/to/fact)" },
+                            "include_history": { "type": "boolean", "description": "Include chain of superseded/extended facts", "default": false }
                         },
                         "required": ["id_or_path"]
                     }
                 },
                 {
                     "name": "meh_browse",
-                    "description": "Browse the knowledge base path structure. Like 'ls' or 'tree' command. Paginated for scalability.",
+                    "description": "Browse the knowledge base path structure like 'ls' or 'tree'. Use to explore what's in the KB. Example: meh_browse({\"path\": \"@meh\"}) to see project knowledge, or meh_browse({\"path\": \"@\", \"mode\": \"tree\"}) for full structure.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "path": { "type": "string", "description": "Path prefix to browse (default: root)", "default": "@" },
-                            "mode": { "type": "string", "enum": ["ls", "tree"], "description": "Browse mode: 'ls' for flat list, 'tree' for hierarchical view", "default": "ls" },
-                            "depth": { "type": "integer", "description": "Maximum depth for tree mode (default: 3)", "default": 3 },
-                            "limit": { "type": "integer", "description": "Maximum number of results (default: 100)", "default": 100 },
-                            "cursor": { "type": "string", "description": "Cursor for pagination (path to start after)" }
+                            "path": { "type": "string", "description": "Path prefix to list (default: @ for root)", "default": "@" },
+                            "mode": { "type": "string", "enum": ["ls", "tree"], "description": "'ls' = flat list, 'tree' = hierarchical", "default": "ls" },
+                            "depth": { "type": "integer", "description": "Tree depth (default: 3)", "default": 3 },
+                            "limit": { "type": "integer", "description": "Max entries (default: 100)", "default": 100 },
+                            "cursor": { "type": "string", "description": "For pagination - pass last path from previous response" }
                         }
                     }
                 },
                 {
                     "name": "meh_add",
-                    "description": "Add a new fact to the knowledge base. Returns the new fact ID.",
+                    "description": "Add a new fact to the knowledge base. Use to SAVE your discoveries, decisions, bug fixes, and learnings for future sessions! Example: meh_add({\"path\": \"@project/bugs/auth-issue\", \"content\": \"# Auth Bug\\n\\nFixed by...\", \"tags\": [\"bug\", \"fixed\"]}). Path conventions: @project/bugs/*, @project/architecture/*, @meh/todo/*",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "path": { "type": "string", "description": "Fact path (e.g. '@products/alpha/api/timeout')" },
-                            "content": { "type": "string", "description": "Fact content in Markdown format" },
-                            "tags": { "type": "array", "items": { "type": "string" }, "description": "Optional tags for categorization" }
+                            "path": { "type": "string", "description": "Path for the fact. Start with @, use / separator, lowercase kebab-case. Example: '@project/api/rate-limits'" },
+                            "content": { "type": "string", "description": "Fact content in Markdown. First line becomes the title." },
+                            "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for categorization: bug, fixed, architecture, todo, etc." }
                         },
                         "required": ["path", "content"]
                     }
                 },
                 {
                     "name": "meh_correct",
-                    "description": "Correct an existing fact. Creates new fact that supersedes the original (append-only).",
+                    "description": "Correct an existing fact with updated information. Creates a NEW fact that supersedes the original (append-only, preserves history). Use when a fact is WRONG. Example: meh_correct({\"fact_id\": \"meh-01ABC\", \"new_content\": \"# Corrected info...\", \"reason\": \"Previous timeout was wrong\"})",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "fact_id": { "type": "string", "description": "ID of the fact to correct (meh-xxx)" },
-                            "new_content": { "type": "string", "description": "Corrected content in Markdown format" },
-                            "reason": { "type": "string", "description": "Optional reason for correction" }
+                            "fact_id": { "type": "string", "description": "ID of fact to correct (meh-XXXX format from search results)" },
+                            "new_content": { "type": "string", "description": "Complete new content (replaces old)" },
+                            "reason": { "type": "string", "description": "Why correcting? Helps future readers understand." }
                         },
                         "required": ["fact_id", "new_content"]
                     }
                 },
                 {
                     "name": "meh_extend",
-                    "description": "Extend an existing fact with additional information. Creates linked extension fact.",
+                    "description": "Add more information to an existing fact without replacing it. Use to ADD details, examples, or VOTE on proposals from other AIs. Example: meh_extend({\"fact_id\": \"meh-01ABC\", \"extension\": \"## Additional notes\\n\\nAlso discovered that...\"}). Voting format: '## 🗳️ Vote\\n+1 for X because...'",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "fact_id": { "type": "string", "description": "ID of the fact to extend (meh-xxx)" },
-                            "extension": { "type": "string", "description": "Additional content to add" }
+                            "fact_id": { "type": "string", "description": "ID of fact to extend (meh-XXXX format)" },
+                            "extension": { "type": "string", "description": "Additional content to append. Use Markdown." }
                         },
                         "required": ["fact_id", "extension"]
                     }
                 },
                 {
                     "name": "meh_deprecate",
-                    "description": "Mark a fact as deprecated. The fact remains but is flagged as outdated.",
+                    "description": "Mark a fact as deprecated/outdated. Fact remains readable but flagged. Use when info is no longer relevant. Example: meh_deprecate({\"fact_id\": \"meh-01ABC\", \"reason\": \"API v2 replaced this endpoint\"})",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "fact_id": { "type": "string", "description": "ID of the fact to deprecate (meh-xxx)" },
-                            "reason": { "type": "string", "description": "Reason for deprecation" }
+                            "fact_id": { "type": "string", "description": "ID of fact to deprecate (meh-XXXX format)" },
+                            "reason": { "type": "string", "description": "Why deprecated? Helps others understand." }
                         },
                         "required": ["fact_id"]
                     }
                 },
                 {
                     "name": "meh_get_notifications",
-                    "description": "Get pending notifications about knowledge base changes. Called automatically at start of sessions.",
+                    "description": "Get pending notifications about KB changes (new facts, corrections, alerts). Each AI session has independent notification tracking. Example: meh_get_notifications({}) or meh_get_notifications({\"priority_min\": \"high\"})",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "priority_min": { "type": "string", "enum": ["normal", "high", "critical"], "description": "Minimum priority filter" },
-                            "limit": { "type": "integer", "description": "Maximum number of notifications (default: 10)", "default": 10 }
+                            "priority_min": { "type": "string", "enum": ["normal", "high", "critical"], "description": "Filter: only this priority or higher" },
+                            "limit": { "type": "integer", "description": "Max notifications (default: 10)", "default": 10 }
                         }
                     }
                 },
                 {
                     "name": "meh_ack_notifications",
-                    "description": "Acknowledge notifications. Use [\"*\"] to acknowledge all.",
+                    "description": "Mark notifications as read. Use [\"*\"] to acknowledge all at once. Example: meh_ack_notifications({\"notification_ids\": [\"*\"]})",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "notification_ids": { "type": "array", "items": { "type": "string" }, "description": "Notification IDs to acknowledge (or [\"*\"] for all)" }
+                            "notification_ids": { "type": "array", "items": { "type": "string" }, "description": "IDs to ack, or [\"*\"] for all" }
                         },
                         "required": ["notification_ids"]
                     }
                 },
                 {
                     "name": "meh_subscribe",
-                    "description": "Subscribe to notification categories and/or path prefixes. Only receive notifications matching your subscription.",
+                    "description": "Configure which notifications you receive. Filter by category and/or path prefix. Example: meh_subscribe({\"categories\": [\"facts\", \"security\"], \"path_prefixes\": [\"@project\"]}) or meh_subscribe({\"show\": true}) to see current subscription.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "categories": { "type": "array", "items": { "type": "string" }, "description": "Categories to subscribe to: facts, ci, security, docs, system (empty = all)" },
-                            "path_prefixes": { "type": "array", "items": { "type": "string" }, "description": "Path prefixes to subscribe to (e.g. ['@products/alpha']) (empty = all)" },
+                            "categories": { "type": "array", "items": { "type": "string" }, "description": "Categories: facts, ci, security, docs, system (empty = all)" },
+                            "path_prefixes": { "type": "array", "items": { "type": "string" }, "description": "Path prefixes to watch (empty = all)" },
                             "priority_min": { "type": "string", "enum": ["normal", "high", "critical"], "description": "Minimum priority to receive" },
-                            "show": { "type": "boolean", "description": "Just show current subscription without changing it", "default": false }
+                            "show": { "type": "boolean", "description": "Just show current subscription, don't change", "default": false }
                         }
                     }
                 }
@@ -324,10 +324,13 @@ impl MehMcpServer {
             return Ok(result);
         }
 
+        // Check if results contain proposals/todos that might benefit from voting
+        let voting_hint = self.get_voting_hint(&facts);
+
         let mut result = onboarding_content;
         result.push_str(&notification_header);
         result.push_str(&format!("Found {} facts:\n\n", facts.len()));
-        for fact in facts {
+        for fact in &facts {
             result.push_str(&format!(
                 "## {} ({})\n**Path:** {}\n**Trust:** {:.2}\n{}\n\n---\n\n",
                 fact.title,
@@ -337,7 +340,31 @@ impl MehMcpServer {
                 fact.summary.as_deref().unwrap_or(&fact.content)
             ));
         }
+        
+        // Add voting hint at the end if applicable
+        if !voting_hint.is_empty() {
+            result.push_str(&voting_hint);
+        }
+        
         Ok(result)
+    }
+
+    /// Check if search results contain proposals/todos that AI should consider voting on
+    fn get_voting_hint(&self, facts: &[Fact]) -> String {
+        let proposal_paths = ["@meh/todo/", "@meh/board/", "/todo/", "/proposal/", "/rfc/"];
+        
+        let proposal_count = facts.iter()
+            .filter(|f| proposal_paths.iter().any(|p| f.path.contains(p)))
+            .count();
+        
+        if proposal_count > 0 {
+            format!(
+                "\n💡 **Tip:** Found {} proposal(s)/TODO(s). Consider adding your perspective with `meh_extend` (format: `## 🗳️ Vote\\n+1 for X because...`).\n",
+                proposal_count
+            )
+        } else {
+            String::new()
+        }
     }
 
     /// Get notification header to inject in search results

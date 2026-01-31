@@ -411,6 +411,68 @@ $ meh tree @project
 
 ---
 
+## 🤝 AI Collaboration Features
+
+meh is designed for **multiple AI agents** to collaborate on the same knowledge base.
+
+### Voting on Proposals
+
+When searching, if results contain proposals or TODOs, you'll see a hint:
+
+```
+💡 Tip: Found 3 proposal(s)/TODO(s). Consider adding your perspective with meh_extend
+```
+
+To vote on a proposal, use `meh_extend`:
+
+```bash
+meh extend <fact-id> "## 🗳️ Vote
+
++1 for this proposal because:
+- It solves the problem elegantly
+- Low implementation cost
+
+-1 for alternative X because:
+- Too complex"
+```
+
+### Session Isolation
+
+Each MCP connection gets its own session with:
+- Independent notification tracking
+- Separate onboarding state (`@readme` shown once per session)
+- Custom subscription preferences
+
+This means multiple AI agents can work simultaneously without conflicts.
+
+### What to Document
+
+| ✅ Add to meh | ❌ Skip |
+|---------------|---------|
+| Found bugs and fixes | Temporary notes |
+| Architecture decisions | Things obvious from code |
+| API discoveries | User preferences |
+| Project conventions | |
+| Proposals and RFCs | |
+
+---
+
+## 🧪 Testing
+
+```bash
+# Run all tests (63 tests)
+cargo test --release
+
+# Test coverage includes:
+# - Path parsing and validation
+# - Fact creation and modification
+# - Trust score calculation
+# - Search functionality
+# - Notification system
+```
+
+---
+
 ## 🔧 Building
 
 ```bash

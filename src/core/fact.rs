@@ -395,4 +395,142 @@ mod tests {
         assert!(meh_id.starts_with("meh-"));
         assert_eq!(meh_id.len(), 12); // "meh-" + 8 chars
     }
+
+    // === Additional tests ===
+
+    #[test]
+    fn test_extension() {
+        let original = Fact::new("@test/path", "Original", "Original content");
+        let extension = Fact::extension(&original, "Additional info");
+        
+        assert_eq!(extension.extends, vec![original.id]);
+        assert_eq!(extension.fact_type, FactType::Extension);
+        assert!(extension.title.contains("extension"));
+    }
+
+    #[test]
+    fn test_with_tags() {
+        let fact = Fact::new("@test", "Test", "Content")
+            .with_tags(vec!["bug".to_string(), "critical".to_string()]);
+        
+        assert_eq!(fact.tags.len(), 2);
+        assert!(fact.tags.contains(&"bug".to_string()));
+    }
+
+    #[test]
+    fn test_with_source() {
+        let fact = Fact::new("@test", "Test", "Content")
+            .with_source(Source::Company);
+        
+        assert_eq!(fact.source, Source::Company);
+    }
+
+    #[test]
+    fn test_with_author() {
+        let fact = Fact::new("@test", "Test", "Content")
+            .with_author(AuthorType::Human, "user123");
+        
+        assert_eq!(fact.author_type, AuthorType::Human);
+        assert_eq!(fact.author_id, "user123");
+    }
+
+    #[test]
+    fn test_new_with_author_trust() {
+        let ai_fact = Fact::new_with_author("@test", "AI Fact", "Content", AuthorType::Ai, "gpt-4");
+        assert_eq!(ai_fact.trust_score, 0.5); // AI default
+
+        let human_fact = Fact::new_with_author("@test", "Human Fact", "Content", AuthorType::Human, "john");
+        assert_eq!(human_fact.trust_score, 0.8); // Human default
+    }
+
+    #[test]
+    fn test_source_from_str() {
+        assert_eq!("local".parse::<Source>().unwrap(), Source::Local);
+        assert_eq!("company".parse::<Source>().unwrap(), Source::Company);
+        assert_eq!("global".parse::<Source>().unwrap(), Source::Global);
+        assert_eq!("npm".parse::<Source>().unwrap(), Source::Npm);
+        assert!("unknown".parse::<Source>().is_err());
+    }
+
+    #[test]
+    fn test_source_display() {
+        assert_eq!(format!("{}", Source::Local), "local");
+        assert_eq!(format!("{}", Source::Company), "company");
+    }
+
+    #[test]
+    fn test_generate_summary_long_content() {
+        let long_content = "This is a very long piece of content that exceeds the maximum character limit and should be truncated at a word boundary to avoid cutting words in the middle.";
+        let mut fact = Fact::new("@test", "Test", long_content);
+        fact.generate_summary(50);
+        
+        let summary = fact.summary.unwrap();
+        assert!(summary.len() <= 53); // 50 + "..."
+        assert!(summary.ends_with("..."));
+    }
+
+    #[test]
+    fn test_generate_summary_short_content() {
+        let mut fact = Fact::new("@test", "Test", "Short.");
+        fact.generate_summary(100);
+        assert_eq!(fact.summary, Some("Short.".to_string()));
+    }
+
+    #[test]
+    fn test_short_id() {
+        let fact = Fact::new("@test", "Test", "Content");
+        let short = fact.short_id();
+        assert_eq!(short.len(), 8);
+        // Should be lowercase
+        assert_eq!(short, short.to_lowercase());
+    }
+
+    #[test]
+    fn test_display() {
+        let fact = Fact::new("@test/path", "My Title", "Content");
+        let display = format!("{}", fact);
+        assert!(display.contains("meh-"));
+        assert!(display.contains("@test/path"));
+        assert!(display.contains("My Title"));
+    }
+
+    #[test]
+    fn test_status_default() {
+        let fact = Fact::new("@test", "Test", "Content");
+        assert_eq!(fact.status, Status::Active);
+    }
+
+    #[test]
+    fn test_fact_type_default() {
+        let fact = Fact::new("@test", "Test", "Content");
+        assert_eq!(fact.fact_type, FactType::Fact);
+    }
+
+    #[test]
+    fn test_timestamps() {
+        let before = Utc::now();
+        let fact = Fact::new("@test", "Test", "Content");
+        let after = Utc::now();
+        
+        assert!(fact.created_at >= before);
+        assert!(fact.created_at <= after);
+        assert_eq!(fact.created_at, fact.updated_at);
+        assert!(fact.accessed_at.is_none());
+    }
+
+    #[test]
+    fn test_correction_preserves_tags() {
+        let original = Fact::new("@test", "Test", "Content")
+            .with_tags(vec!["important".to_string()]);
+        
+        let correction = Fact::correction(&original, "New content");
+        assert_eq!(correction.tags, vec!["important".to_string()]);
+    }
+
+    #[test]
+    fn test_unique_ids() {
+        let fact1 = Fact::new("@test", "Test1", "Content1");
+        let fact2 = Fact::new("@test", "Test2", "Content2");
+        assert_ne!(fact1.id, fact2.id);
+    }
 }

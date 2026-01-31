@@ -326,4 +326,126 @@ mod tests {
         ).unwrap();
         assert_eq!(path.depth(), 10);
     }
+
+    // === Additional tests ===
+
+    #[test]
+    fn test_empty_path_error() {
+        assert!(Path::parse("").is_err());
+        assert!(Path::parse("   ").is_err());
+    }
+
+    #[test]
+    fn test_invalid_characters() {
+        // Spaces not allowed
+        assert!(Path::parse("@products/my path").is_err());
+        // Special chars not allowed
+        assert!(Path::parse("@products/path!name").is_err());
+        assert!(Path::parse("@products/path#name").is_err());
+    }
+
+    #[test]
+    fn test_valid_characters() {
+        // Underscore and dash are allowed
+        assert!(Path::parse("@my_product/api-v2").is_ok());
+        // @ is allowed (for reserved prefixes)
+        assert!(Path::parse("@meh/todo").is_ok());
+    }
+
+    #[test]
+    fn test_name() {
+        let path = Path::parse("@products/alpha/timeout").unwrap();
+        assert_eq!(path.name(), Some("timeout"));
+        
+        let root = Path::parse("/").unwrap();
+        assert_eq!(root.name(), None);
+    }
+
+    #[test]
+    fn test_parent_chain() {
+        let path = Path::parse("@a/b/c/d").unwrap();
+        let p1 = path.parent().unwrap();
+        assert_eq!(p1.to_string(), "@a/b/c");
+        let p2 = p1.parent().unwrap();
+        assert_eq!(p2.to_string(), "@a/b");
+        let p3 = p2.parent().unwrap();
+        assert_eq!(p3.to_string(), "@a");
+        let p4 = p3.parent().unwrap();
+        assert!(p4.is_root());
+        assert!(p4.parent().is_none());
+    }
+
+    #[test]
+    fn test_starts_with_self() {
+        let path = Path::parse("@products/alpha").unwrap();
+        assert!(path.starts_with(&path));
+    }
+
+    #[test]
+    fn test_starts_with_longer_prefix() {
+        let path = Path::parse("@products").unwrap();
+        let longer = Path::parse("@products/alpha/beta").unwrap();
+        assert!(!path.starts_with(&longer));
+    }
+
+    #[test]
+    fn test_wildcard_at_start() {
+        let path = Path::parse("@products/alpha/api").unwrap();
+        assert!(path.matches_pattern("*/alpha/api"));
+        assert!(path.matches_pattern("**/api"));
+    }
+
+    #[test]
+    fn test_wildcard_double_zero_segments() {
+        // ** can match zero segments
+        let path = Path::parse("@products/timeout").unwrap();
+        assert!(path.matches_pattern("@products/**/timeout"));
+    }
+
+    #[test]
+    fn test_display() {
+        let path = Path::parse("@meh/todo/item").unwrap();
+        assert_eq!(format!("{}", path), "@meh/todo/item");
+        
+        let root = Path::parse("/").unwrap();
+        assert_eq!(format!("{}", root), "/");
+    }
+
+    #[test]
+    fn test_try_from_str() {
+        let path: Path = "@test/path".try_into().unwrap();
+        assert_eq!(path.depth(), 2);
+    }
+
+    #[test]
+    fn test_try_from_string() {
+        let path: Path = String::from("@test/path").try_into().unwrap();
+        assert_eq!(path.depth(), 2);
+    }
+
+    #[test]
+    fn test_reserved_prefix() {
+        let reserved = Path::parse("@products/alpha").unwrap();
+        assert!(reserved.is_reserved_prefix());
+        
+        let not_reserved = Path::parse("@meh/todo").unwrap();
+        assert!(!not_reserved.is_reserved_prefix());
+        
+        let custom = Path::parse("@custom/path").unwrap();
+        assert!(!custom.is_reserved_prefix());
+    }
+
+    #[test]
+    fn test_join_empty() {
+        let path = Path::parse("@products").unwrap();
+        let joined = path.join("").unwrap();
+        assert_eq!(joined.to_string(), "@products");
+    }
+
+    #[test]
+    fn test_multiple_consecutive_slashes() {
+        let path = Path::parse("@products//alpha///beta").unwrap();
+        assert_eq!(path.segments().len(), 3);
+        assert_eq!(path.segments(), &["@products", "alpha", "beta"]);
+    }
 }
