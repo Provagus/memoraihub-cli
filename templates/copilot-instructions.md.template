@@ -6,40 +6,46 @@
 
 This project uses **meh** as a knowledge base for AI. You have access to MCP tools.
 
+### ⚠️ Tool Names
+
+MCP tools have `mcp_meh_` prefix:
+- ❌ `meh_search` (old/conceptual name)
+- ✅ `mcp_meh_meh_search` (actual tool name)
+
 ### Session Workflow
 
 #### 1. START - at the beginning of session
 ```
-meh_get_notifications()      # check what changed
-meh_browse("@")              # see structure
-meh_get_fact("@readme")      # read onboarding (if exists)
+mcp_meh_meh_get_notifications()      # check what changed
+mcp_meh_meh_browse(path="@", mode="tree")  # see structure
+mcp_meh_meh_get_fact(id_or_path="@readme")  # read onboarding (if exists)
 ```
 
 #### 2. WORK - during task
 ```
-meh_search("topic")          # BEFORE answering - search if knowledge exists
-meh_add("@path", "content")  # document discoveries
+mcp_meh_meh_search(query="topic")          # BEFORE answering - search if knowledge exists
+mcp_meh_meh_add(path="@path", content="content")  # document discoveries
 ```
 
 #### 3. END - after finishing
 ```
-meh_ack_notifications(["*"]) # acknowledge read notifications
+mcp_meh_meh_ack_notifications(notification_ids=["*"]) # acknowledge read notifications
 ```
 
 ### Available Tools
 
 | Tool | When to use |
 |------|-------------|
-| `meh_search` | Search knowledge BEFORE answering |
-| `meh_browse` | Browse path structure |
-| `meh_get_fact` | Get full fact content |
-| `meh_add` | Add new knowledge |
-| `meh_correct` | Correct an incorrect fact |
-| `meh_extend` | Extend existing fact |
-| `meh_deprecate` | Mark fact as outdated |
-| `meh_get_notifications` | Check KB changes |
-| `meh_ack_notifications` | Acknowledge read |
-| `meh_subscribe` | Filter notifications |
+| `mcp_meh_meh_search` | Search knowledge BEFORE answering |
+| `mcp_meh_meh_browse` | Browse path structure |
+| `mcp_meh_meh_get_fact` | Get full fact content |
+| `mcp_meh_meh_add` | Add new knowledge |
+| `mcp_meh_meh_correct` | Correct an incorrect fact |
+| `mcp_meh_meh_extend` | Extend existing fact |
+| `mcp_meh_meh_deprecate` | Mark fact as outdated |
+| `mcp_meh_meh_get_notifications` | Check KB changes |
+| `mcp_meh_meh_ack_notifications` | Acknowledge read |
+| `mcp_meh_meh_subscribe` | Filter notifications |
 
 ### Path Conventions
 
@@ -69,9 +75,9 @@ meh_ack_notifications(["*"]) # acknowledge read notifications
 
 ```
 1. User: "How does search work?"
-2. AI: meh_search("search implementation")
+2. AI: mcp_meh_meh_search(query="search implementation")
 3. AI: [reads results, answers with context]
-4. AI: meh_add("@docs/search-explained", "Explanation for future sessions")
+4. AI: mcp_meh_meh_add(path="@docs/search-explained", content="Explanation for future sessions")
 ```
 
 ## 📁 Project Structure

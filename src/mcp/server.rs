@@ -379,7 +379,7 @@ impl MehMcpServer {
         result.push_str(&format!("Found {} facts:\n\n", facts.len()));
         for fact in &facts {
             result.push_str(&format!(
-                "## {} ({})\n**Path:** {}\n**Trust:** {:.2}\n{}\n\n---\n\n",
+                "## {} (meh-{})\n**Path:** {}\n**Trust:** {:.2}\n{}\n\n---\n\n",
                 fact.title,
                 fact.id,
                 fact.path,
