@@ -189,8 +189,10 @@ async fn list(args: &KbsArgs, config: &Config) -> Result<()> {
             default_badge
         );
         println!("   {}", kb.name);
-        if !kb.description.is_empty() {
-            println!("   {}", kb.description.dimmed());
+        if let Some(desc) = &kb.description {
+            if !desc.is_empty() {
+                println!("   {}", desc.dimmed());
+            }
         }
     }
 
@@ -244,11 +246,7 @@ async fn info(args: &KbsArgs, config: &Config, slug: String) -> Result<()> {
     println!("Name:        {}", kb.name);
     println!(
         "Description: {}",
-        if kb.description.is_empty() {
-            "(none)"
-        } else {
-            &kb.description
-        }
+        kb.description.as_deref().unwrap_or("(none)")
     );
     println!("Visibility:  {}", kb.visibility);
     println!("Owner:       {}", kb.owner_id);

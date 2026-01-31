@@ -30,7 +30,7 @@ pub struct KnowledgeBase {
     pub id: String,
     pub slug: String,
     pub name: String,
-    pub description: String,
+    pub description: Option<String>,
     pub owner_id: String,
     pub visibility: String,
     pub created_at: String,
