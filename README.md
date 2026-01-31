@@ -155,7 +155,34 @@ AI: [Answers user with knowledge from meh]
 
 ---
 
-## 📂 Path System
+## � Templates
+
+The `templates/` folder contains ready-to-use templates:
+
+### `copilot-instructions.md.template`
+
+Copy to `.github/copilot-instructions.md` to give AI agents instructions on how to use meh:
+
+```bash
+cp templates/copilot-instructions.md.template .github/copilot-instructions.md
+# Then customize for your project
+```
+
+### `readme.md.template`
+
+Use as a starting point for `@readme` fact - the first thing AI reads when entering your KB:
+
+```bash
+# Add as a fact
+meh add --path "@readme" --tags "onboarding,ai" "$(cat templates/readme.md.template)"
+# Then edit with your project details
+```
+
+The `@readme` fact serves as onboarding for AI agents - explaining the KB structure, conventions, and workflow.
+
+---
+
+## �📂 Path System
 
 Facts are organized in hierarchical paths:
 

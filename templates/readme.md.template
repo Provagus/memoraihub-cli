@@ -1,0 +1,43 @@
+# {PROJECT_NAME} Knowledge Base
+
+## About
+
+<!-- Short project description - 1-2 sentences -->
+
+## For AI - Session Workflow
+
+### 1. START session
+```
+meh_get_notifications()  # check what changed
+meh_browse("@")          # see structure
+meh_get_fact("@readme")  # you're reading this now
+```
+
+### 2. WORK
+```
+meh_search("topic")      # BEFORE answering - search if knowledge exists
+meh_add("@path", "...")  # document discoveries
+```
+
+### 3. END
+```
+meh_ack_notifications(["*"])  # acknowledge read notifications
+```
+
+## Path Structure
+
+```
+@docs/       - documentation
+@bugs/       - found bugs
+@todo/       - tasks to do
+@decisions/  - architectural decisions
+```
+
+## What to Document?
+
+✅ YES: bugs, decisions, solutions, TODOs, feedback
+❌ NO: code, obvious things, temporary notes
+
+## Project
+
+<!-- Short project structure description -->

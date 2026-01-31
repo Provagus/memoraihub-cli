@@ -1,0 +1,83 @@
+# Copilot Instructions
+
+> Instructions for AI agents working in this workspace.
+
+## 🧠 Knowledge Base (meh)
+
+This project uses **meh** as a knowledge base for AI. You have access to MCP tools.
+
+### Session Workflow
+
+#### 1. START - at the beginning of session
+```
+meh_get_notifications()      # check what changed
+meh_browse("@")              # see structure
+meh_get_fact("@readme")      # read onboarding (if exists)
+```
+
+#### 2. WORK - during task
+```
+meh_search("topic")          # BEFORE answering - search if knowledge exists
+meh_add("@path", "content")  # document discoveries
+```
+
+#### 3. END - after finishing
+```
+meh_ack_notifications(["*"]) # acknowledge read notifications
+```
+
+### Available Tools
+
+| Tool | When to use |
+|------|-------------|
+| `meh_search` | Search knowledge BEFORE answering |
+| `meh_browse` | Browse path structure |
+| `meh_get_fact` | Get full fact content |
+| `meh_add` | Add new knowledge |
+| `meh_correct` | Correct an incorrect fact |
+| `meh_extend` | Extend existing fact |
+| `meh_deprecate` | Mark fact as outdated |
+| `meh_get_notifications` | Check KB changes |
+| `meh_ack_notifications` | Acknowledge read |
+| `meh_subscribe` | Filter notifications |
+
+### Path Conventions
+
+```
+@docs/           - documentation
+@bugs/           - found bugs
+@todo/           - tasks to do
+@decisions/      - architectural decisions
+@board/          - dashboards and status
+```
+
+### What to Document?
+
+✅ **YES:**
+- Found bugs (even small ones)
+- Decisions and why
+- Problem solutions
+- TODOs for future
+- Observations and feedback
+
+❌ **NO:**
+- Code (it's in repo)
+- Obvious things from code
+- Temporary notes
+
+### Example Workflow
+
+```
+1. User: "How does search work?"
+2. AI: meh_search("search implementation")
+3. AI: [reads results, answers with context]
+4. AI: meh_add("@docs/search-explained", "Explanation for future sessions")
+```
+
+## 📁 Project Structure
+
+<!-- Fill in for your project -->
+
+- `src/` - source code
+- `docs/` - documentation
+- `.meh/` - knowledge base (SQLite)
