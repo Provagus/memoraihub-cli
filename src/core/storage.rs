@@ -231,8 +231,18 @@ impl Storage {
         Ok(results)
     }
 
+    /// Escape query for FTS5 (handles special characters like hyphens)
+    fn escape_fts_query(query: &str) -> String {
+        // FTS5 treats - as NOT operator. Quote the entire query to search literally.
+        // Also escape any existing quotes.
+        let escaped = query.replace('"', "\"\"");
+        format!("\"{}\"", escaped)
+    }
+
     /// Full-text search
     pub fn search(&self, query: &str, limit: i64) -> Result<Vec<Fact>> {
+        let fts_query = Self::escape_fts_query(query);
+        
         let mut stmt = self.conn.prepare(
             r#"
             SELECT f.* 
@@ -244,7 +254,7 @@ impl Storage {
             "#
         )?;
 
-        let facts = stmt.query_map(params![query, limit as i32], |row| Self::row_to_fact(row))?
+        let facts = stmt.query_map(params![fts_query, limit as i32], |row| Self::row_to_fact(row))?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(facts)

@@ -55,7 +55,10 @@ pub fn run(args: CorrectArgs) -> Result<()> {
     };
 
     // 4. Create correction fact
-    let correction = Fact::correction(&original, content);
+    let mut correction = Fact::correction(&original, content);
+    correction.author_type = crate::core::fact::AuthorType::Human;
+    correction.author_id = "cli".to_string();
+    correction.generate_summary(150);
     let meh_id = correction.meh_id();
 
     // 5. Insert new fact

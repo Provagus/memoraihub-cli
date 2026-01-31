@@ -82,6 +82,9 @@ pub fn run(args: AddArgs) -> Result<()> {
     // 5. Create Fact struct with builder pattern
     let mut fact = Fact::new(path.to_string(), title, content);
     fact.tags = args.tags.unwrap_or_default();
+    fact.author_type = crate::core::fact::AuthorType::Human;
+    fact.author_id = "cli".to_string();
+    fact.generate_summary(150);
 
     let meh_id = fact.meh_id();
 

@@ -51,7 +51,10 @@ pub fn run(args: ExtendArgs) -> Result<()> {
     };
 
     // 4. Create extension fact
-    let extension = Fact::extension(&original, content);
+    let mut extension = Fact::extension(&original, content);
+    extension.author_type = crate::core::fact::AuthorType::Human;
+    extension.author_id = "cli".to_string();
+    extension.generate_summary(150);
     let meh_id = extension.meh_id();
 
     // 5. Insert new fact

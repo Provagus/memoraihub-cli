@@ -10,7 +10,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use meh::cli::{Cli, Commands};
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
@@ -32,5 +33,36 @@ fn main() -> Result<()> {
         Commands::Deprecate(args) => meh::cli::deprecate::run(args),
         Commands::Init(args) => meh::cli::init::run(args),
         Commands::Config(args) => meh::cli::config::run(args),
+        Commands::Serve(args) => run_serve(args).await,
     }
+}
+
+async fn run_serve(args: meh::cli::serve::ServeArgs) -> Result<()> {
+    use meh::config::Config;
+    
+    let config = Config::load()?;
+    // data_dir() actually returns full path to data.db, not just directory
+    let db_path = config.data_dir();
+
+    if !db_path.exists() {
+        anyhow::bail!("Database not found at {:?}. Run 'meh init' first.", db_path);
+    }
+
+    eprintln!("🚀 Starting MCP server (transport: {})", args.transport);
+    
+    match args.transport.as_str() {
+        "stdio" => {
+            // run_mcp_server is sync, no await needed
+            meh::run_mcp_server(db_path)?;
+        }
+        "http" => {
+            eprintln!("HTTP transport not yet implemented. Use stdio.");
+            anyhow::bail!("HTTP transport not yet implemented");
+        }
+        _ => {
+            anyhow::bail!("Unknown transport: {}. Use 'stdio' or 'http'.", args.transport);
+        }
+    }
+
+    Ok(())
 }

@@ -44,6 +44,13 @@ directories = "5.0"
 colored = "2.1"
 tabled = "0.15"
 
+# MCP (Model Context Protocol) - using simple JSON-RPC implementation
+# No additional dependencies needed - using serde_json and tokio
+
+# Async for MCP
+async-trait = "0.1"
+futures = "0.3"
+
 [dev-dependencies]
 tempfile = "3.10"
 assert_cmd = "2.0"

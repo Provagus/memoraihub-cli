@@ -16,7 +16,9 @@
 pub mod cli;
 pub mod core;
 pub mod config;
+pub mod mcp;
 
 pub use core::fact::Fact;
+pub use mcp::run_mcp_server;
 pub use core::path::Path;
 pub use core::storage::Storage;

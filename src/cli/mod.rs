@@ -65,4 +65,9 @@ pub enum Commands {
 
     /// Get or set configuration
     Config(config::ConfigArgs),
+
+    /// Start MCP server (for AI integration)
+    Serve(serve::ServeArgs),
 }
+
+pub mod serve;
