@@ -17,6 +17,7 @@ pub struct RemoteClient {
     client: Client,
     base_url: Url,
     token: Option<String>,
+    api_key: Option<String>,
 }
 
 impl RemoteClient {
@@ -25,11 +26,11 @@ impl RemoteClient {
         let url = config.url.as_ref()
             .ok_or_else(|| anyhow::anyhow!("Server URL not configured. Set server.url in config or use --server-url flag."))?;
         
-        Self::new(url, config.token.clone(), config.timeout_secs)
+        Self::new(url, config.token.clone(), config.api_key.clone(), config.timeout_secs)
     }
     
     /// Create new client with explicit parameters
-    pub fn new(base_url: &str, token: Option<String>, timeout_secs: u64) -> Result<Self> {
+    pub fn new(base_url: &str, token: Option<String>, api_key: Option<String>, timeout_secs: u64) -> Result<Self> {
         let base_url = Url::parse(base_url)
             .with_context(|| format!("Invalid server URL: {}", base_url))?;
         
@@ -38,7 +39,7 @@ impl RemoteClient {
             .build()
             .context("Failed to create HTTP client")?;
         
-        Ok(Self { client, base_url, token })
+        Ok(Self { client, base_url, token, api_key })
     }
     
     /// Build a URL for an endpoint
@@ -47,9 +48,12 @@ impl RemoteClient {
             .with_context(|| format!("Invalid endpoint path: {}", path))
     }
     
-    /// Add auth header if token is set
+    /// Add auth header if token or API key is set
+    /// Priority: API key > Bearer token
     fn auth_header(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        if let Some(ref token) = self.token {
+        if let Some(ref api_key) = self.api_key {
+            builder.header("X-API-Key", api_key)
+        } else if let Some(ref token) = self.token {
             builder.header("Authorization", format!("Bearer {}", token))
         } else {
             builder

@@ -143,9 +143,13 @@ pub struct ServerConfig {
     #[serde(default)]
     pub url: Option<String>,
     
-    /// Authentication token
+    /// Authentication token (JWT access token)
     #[serde(default)]
     pub token: Option<String>,
+    
+    /// API key for AI agents (meh_xxx format)
+    #[serde(default)]
+    pub api_key: Option<String>,
     
     /// Default knowledge base slug
     #[serde(default)]
@@ -161,6 +165,7 @@ impl Default for ServerConfig {
         Self {
             url: None,
             token: None,
+            api_key: None,
             default_kb: None,
             timeout_secs: default_server_timeout(),
         }

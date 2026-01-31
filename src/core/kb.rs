@@ -165,8 +165,8 @@ pub struct RemoteKb {
 
 impl RemoteKb {
     /// Create a new remote KB
-    pub fn new(server_url: &str, kb_slug: &str, token: Option<String>, timeout_secs: u64) -> Result<Self> {
-        let client = crate::remote::RemoteClient::new(server_url, token, timeout_secs)?;
+    pub fn new(server_url: &str, kb_slug: &str, token: Option<String>, api_key: Option<String>, timeout_secs: u64) -> Result<Self> {
+        let client = crate::remote::RemoteClient::new(server_url, token, api_key, timeout_secs)?;
         Ok(Self {
             client,
             kb_slug: kb_slug.to_string(),
@@ -335,6 +335,7 @@ impl KnowledgeBase {
                 url,
                 slug,
                 config.server.token.clone(),
+                config.server.api_key.clone(),
                 config.server.timeout_secs,
             )?));
         }

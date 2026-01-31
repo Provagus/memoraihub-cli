@@ -110,7 +110,9 @@ fn create_client(args: &KbsArgs, config: &Config) -> Result<RemoteClient> {
         .or(config.server.token.as_ref())
         .cloned();
     
-    RemoteClient::new(url, token, config.server.timeout_secs)
+    let api_key = config.server.api_key.clone();
+    
+    RemoteClient::new(url, token, api_key, config.server.timeout_secs)
 }
 
 /// Test connection to server

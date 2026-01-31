@@ -25,6 +25,7 @@ pub async fn remote_search(opts: RemoteSearchOptions<'_>) -> Result<()> {
     let client = RemoteClient::new(
         opts.server_url,
         config.server.token.clone(),
+        config.server.api_key.clone(),
         config.server.timeout_secs,
     )?;
     
@@ -100,6 +101,7 @@ pub async fn remote_add(opts: RemoteAddOptions<'_>) -> Result<()> {
     let client = RemoteClient::new(
         opts.server_url,
         config.server.token.clone(),
+        config.server.api_key.clone(),
         config.server.timeout_secs,
     )?;
     
@@ -134,6 +136,7 @@ pub async fn remote_show(opts: RemoteShowOptions<'_>) -> Result<()> {
     let client = RemoteClient::new(
         opts.server_url,
         config.server.token.clone(),
+        config.server.api_key.clone(),
         config.server.timeout_secs,
     )?;
     
@@ -189,6 +192,7 @@ pub async fn remote_browse(opts: RemoteBrowseOptions<'_>) -> Result<()> {
     let client = RemoteClient::new(
         opts.server_url,
         config.server.token.clone(),
+        config.server.api_key.clone(),
         config.server.timeout_secs,
     )?;
     
