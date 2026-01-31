@@ -7,3 +7,4 @@ pub mod path;
 pub mod storage;
 pub mod search;
 pub mod trust;
+pub mod multi_storage;

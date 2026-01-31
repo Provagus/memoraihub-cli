@@ -392,6 +392,7 @@ impl Storage {
         )?;
 
         Ok(StorageStats {
+            total,
             total_facts: total as usize,
             active_facts: active as usize,
             deprecated_facts: deprecated as usize,
@@ -407,8 +408,9 @@ pub struct PathInfo {
 }
 
 /// Storage statistics
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StorageStats {
+    pub total: i64,
     pub total_facts: usize,
     pub active_facts: usize,
     pub deprecated_facts: usize,

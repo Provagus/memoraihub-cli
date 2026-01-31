@@ -171,6 +171,7 @@ impl Default for TrustCalculator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Duration;
 
     #[test]
     fn test_initial_trust_human_local() {
