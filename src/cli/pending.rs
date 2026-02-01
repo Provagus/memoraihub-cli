@@ -367,27 +367,25 @@ fn push_to_remote(item: &PendingWrite, config: &Config) -> Result<()> {
         .get_kb(&item.target_kb)
         .ok_or_else(|| anyhow::anyhow!("KB '{}' not found in config", item.target_kb))?;
 
-    let url = kb_config
-        .url
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("No URL configured for KB '{}'", item.target_kb))?;
+    // Get server info for this KB
+    let server = config
+        .get_server_for_kb(&item.target_kb)
+        .ok_or_else(|| anyhow::anyhow!("No server configured for KB '{}'", item.target_kb))?;
 
-    // Get API key from environment
-    let api_key = if let Some(ref env_var) = kb_config.api_key_env {
-        std::env::var(env_var).ok()
-    } else {
-        None
-    };
+    let slug = kb_config
+        .slug
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("No slug configured for KB '{}'", item.target_kb))?;
 
     // Build HTTP client
     let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(config.server.timeout_secs))
+        .timeout(Duration::from_secs(server.timeout_secs))
         .build()?;
 
     // Determine endpoint and payload based on write type
     let (endpoint, payload) = match item.write_type {
         PendingWriteType::Add => {
-            let endpoint = format!("{}/api/v1/facts", url);
+            let endpoint = format!("{}/api/v1/kbs/{}/facts", server.url, slug);
             let payload = serde_json::json!({
                 "path": item.path,
                 "content": item.content,
@@ -397,8 +395,9 @@ fn push_to_remote(item: &PendingWrite, config: &Config) -> Result<()> {
         }
         PendingWriteType::Correct => {
             let endpoint = format!(
-                "{}/api/v1/facts/{}/correct",
-                url,
+                "{}/api/v1/kbs/{}/facts/{}/correct",
+                server.url,
+                slug,
                 item.supersedes.as_deref().unwrap_or("")
             );
             let payload = serde_json::json!({
@@ -408,8 +407,9 @@ fn push_to_remote(item: &PendingWrite, config: &Config) -> Result<()> {
         }
         PendingWriteType::Extend => {
             let endpoint = format!(
-                "{}/api/v1/facts/{}/extend",
-                url,
+                "{}/api/v1/kbs/{}/facts/{}/extend",
+                server.url,
+                slug,
                 item.extends.as_deref().unwrap_or("")
             );
             let payload = serde_json::json!({
@@ -418,7 +418,7 @@ fn push_to_remote(item: &PendingWrite, config: &Config) -> Result<()> {
             (endpoint, payload)
         }
         PendingWriteType::Deprecate => {
-            let endpoint = format!("{}/api/v1/facts/{}/deprecate", url, item.path);
+            let endpoint = format!("{}/api/v1/kbs/{}/facts/{}/deprecate", server.url, slug, item.path);
             let payload = serde_json::json!({
                 "reason": item.reason,
             });
@@ -429,8 +429,8 @@ fn push_to_remote(item: &PendingWrite, config: &Config) -> Result<()> {
     // Make request
     let mut request = client.post(&endpoint).json(&payload);
 
-    if let Some(key) = api_key {
-        request = request.header("Authorization", format!("Bearer {}", key));
+    if let Some(ref key) = server.api_key {
+        request = request.header("X-API-Key", key);
     }
 
     let response = request.send()?;

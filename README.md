@@ -19,7 +19,7 @@ Binary location:
 
 ```bash
 cd /your/project
-meh init              # Creates .meh/data.db
+meh init              # Creates .meh/data.db and config.toml
 meh add --path "@readme" "# My Project KB\n\nInstructions for AI..."
 ```
 
@@ -57,7 +57,41 @@ Create `.vscode/mcp.json`:
 
 ---
 
-## 📋 Configuration Details
+## 📋 Configuration
+
+Config is auto-generated on first run at `~/.meh/config.toml` (global) or `.meh/config.toml` (local).
+
+### Adding Knowledge Bases
+
+Use the interactive wizard:
+
+```bash
+meh kbs add
+```
+
+This guides you step-by-step through adding a new KB (local SQLite or remote server).
+
+### Manual Config Example
+
+```toml
+[kbs]
+primary = "local"
+search_order = ["local", "company"]
+
+[[kbs.kb]]
+name = "local"
+kb_type = "sqlite"
+write = "allow"
+
+[[kbs.kb]]
+name = "company"
+kb_type = "remote"
+url = "https://kb.company.com"
+api_key_env = "MEH_COMPANY_KEY"  # Set: export MEH_COMPANY_KEY=your-key
+write = "allow"
+```
+
+See [config.example.toml](config.example.toml) for all options.
 
 ### MCP Server Options
 
@@ -66,66 +100,18 @@ Create `.vscode/mcp.json`:
 | `--db <path>` | Path to database (default: `.meh/data.db`) |
 | `--auto-init` | Create database if it doesn't exist |
 
-### Claude Desktop / Cursor
-
-**Windows:**
-```json
-{
-  "mcpServers": {
-    "meh": {
-      "command": "C:\\path\\to\\meh.exe",
-      "args": ["serve", "--db", "C:\\path\\to\\.meh\\data.db"]
-    }
-  }
-}
-```
-
-**Linux/macOS:**
-```json
-{
-  "mcpServers": {
-    "meh": {
-      "command": "/path/to/meh",
-      "args": ["serve", "--db", "/path/to/.meh/data.db"]
-    }
-  }
-}
-```
-
 ### Environment Variables
 
-```json
-{
-  "servers": {
-    "meh": {
-      "type": "stdio",
-      "command": "meh",
-      "args": ["serve"],
-      "env": {
-        "MEH_DATABASE": "/project/.meh/data.db"
-      }
-    }
-  }
-}
-```
+| Variable | Description |
+| -------- | ----------- |
+| `MEH_DATABASE` | Path to database file |
+| `MEH_CONFIG` | Path to config file |
 
 ---
 
-## 🔧 Write Policy Configuration
+## 🔧 Write Policy
 
-By default, AI can write freely. You can change this.
-
-Create `.meh/config.toml`:
-
-```toml
-[kbs]
-primary = "local"
-
-[[kbs.kb]]
-name = "local"
-kb_type = "sqlite"
-write = "ask"    # "allow" | "deny" | "ask"
-```
+Control what AI can write.
 
 | Policy | Behavior |
 | ------ | -------- |
@@ -185,10 +171,14 @@ You have access to a knowledge base via MCP. Use it to:
 
 ---
 
-## 💻 CLI — Basic Commands
+## 💻 CLI Commands
 
 ```bash
-# Adding
+# Initialize
+meh init                     # Create .meh/ in current directory
+meh init --global            # Create ~/.meh/ (global)
+
+# Adding facts
 meh add --path "@project/api/timeout" "Timeout = 30s"
 
 # Searching
@@ -203,11 +193,20 @@ meh correct <id> "Corrected content"
 meh extend <id> "Additional info"
 meh deprecate <id> --reason "Outdated"
 
-# Statistics
-meh stats
+# Knowledge bases
+meh kbs add                  # Interactive wizard to add KB to config
+meh kbs list                 # List remote KBs (requires server)
+meh kbs use <slug>           # Set default remote KB
 
-# GC (remove old deprecated facts)
-meh gc --dry-run
+# Pending review (when write = "ask")
+meh pending list
+meh pending approve <id>
+meh pending reject <id>
+
+# Maintenance
+meh stats                    # Show statistics
+meh gc --dry-run             # Preview garbage collection
+meh gc                       # Remove old deprecated facts
 ```
 
 ---

@@ -349,39 +349,86 @@ impl KnowledgeBase {
     /// Create from CLI args and config
     ///
     /// Priority:
-    /// 1. --server flag → Remote
-    /// 2. config.server.url → Remote
-    /// 3. Local .meh/data.db
+    /// 1. --server flag → Remote (find server in config by URL)
+    /// 2. --kb flag → Use named KB from config
+    /// 3. Primary KB from config
     pub fn from_args(
         server_url: Option<&str>,
         kb_slug: Option<&str>,
         config: &crate::config::Config,
     ) -> Result<Self> {
-        // Check for remote
-        let server = server_url.or(config.server.url.as_deref());
+        // If explicit server URL provided, find matching server
+        if let Some(url) = server_url {
+            let server = config.servers.iter().find(|s| {
+                s.url.trim_end_matches('/') == url.trim_end_matches('/')
+            });
 
-        if let Some(url) = server {
-            let slug = kb_slug
-                .or(config.server.default_kb.as_deref())
-                .ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "Knowledge base slug required for remote server.\n\
-                     Use --kb flag or set server.default_kb in config."
-                    )
-                })?;
+            let slug = kb_slug.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Knowledge base slug required for remote server.\n\
+                     Use --kb flag to specify the KB slug."
+                )
+            })?;
 
-            return Ok(KnowledgeBase::Remote(RemoteKb::new(
-                url,
-                slug,
-                config.server.token.clone(),
-                config.server.api_key.clone(),
-                config.server.timeout_secs,
-            )?));
+            return if let Some(srv) = server {
+                Ok(KnowledgeBase::Remote(RemoteKb::new(
+                    url,
+                    slug,
+                    None,
+                    srv.api_key.clone(),
+                    srv.timeout_secs,
+                )?))
+            } else {
+                // Unknown server - no auth
+                Ok(KnowledgeBase::Remote(RemoteKb::new(
+                    url,
+                    slug,
+                    None,
+                    None,
+                    30,
+                )?))
+            };
         }
 
-        // Local
-        let db_path = config.data_dir();
-        Ok(KnowledgeBase::Local(LocalKb::open(db_path)?))
+        // Use named KB from config (from --kb flag or primary)
+        let kb_name = kb_slug.unwrap_or(&config.kbs.primary);
+        
+        if let Some(kb_config) = config.get_kb(kb_name) {
+            match kb_config.kb_type.as_str() {
+                "remote" => {
+                    let server = config.get_server_for_kb(kb_name)
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "No server configured for remote KB '{}'. \
+                             Check your config's [[servers]] section.", kb_name
+                        ))?;
+                    let slug = kb_config.slug.as_deref()
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "No slug configured for remote KB '{}'", kb_name
+                        ))?;
+                    
+                    Ok(KnowledgeBase::Remote(RemoteKb::new(
+                        &server.url,
+                        slug,
+                        None,
+                        server.api_key.clone(),
+                        server.timeout_secs,
+                    )?))
+                }
+                _ => {
+                    // SQLite / local
+                    let db_path = if let Some(path) = &kb_config.path {
+                        std::path::PathBuf::from(path)
+                    } else {
+                        config.data_dir()
+                    };
+                    Ok(KnowledgeBase::Local(LocalKb::open(db_path)?))
+                }
+            }
+        } else {
+            // Fallback to local default
+            let db_path = config.data_dir();
+            Ok(KnowledgeBase::Local(LocalKb::open(db_path)?))
+        }
     }
 
     /// Create a local KB from the default config

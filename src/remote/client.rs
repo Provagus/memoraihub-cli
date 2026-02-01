@@ -9,7 +9,7 @@ use reqwest::{Client, StatusCode};
 use url::Url;
 
 use super::types::*;
-use crate::config::ServerConfig;
+use crate::config::{Config, ServerEntry};
 
 /// HTTP client for remote memoraihub-server
 #[derive(Debug, Clone)]
@@ -21,20 +21,29 @@ pub struct RemoteClient {
 }
 
 impl RemoteClient {
-    /// Create new client from server config
-    pub fn from_config(config: &ServerConfig) -> Result<Self> {
-        let url = config.url.as_ref().ok_or_else(|| {
-            anyhow::anyhow!(
-                "Server URL not configured. Set server.url in config or use --server-url flag."
-            )
-        })?;
-
+    /// Create new client from server entry
+    pub fn from_server_entry(server: &ServerEntry) -> Result<Self> {
         Self::new(
-            url,
-            config.token.clone(),
-            config.api_key.clone(),
-            config.timeout_secs,
+            &server.url,
+            None, // No JWT token in new config
+            server.api_key.clone(),
+            server.timeout_secs,
         )
+    }
+
+    /// Create client for a given URL, looking up auth from config servers
+    pub fn from_url_with_config(url: &str, config: &Config) -> Result<Self> {
+        // Try to find matching server in config
+        let normalized_url = url.trim_end_matches('/');
+        
+        if let Some(server) = config.servers.iter().find(|s| {
+            s.url.trim_end_matches('/') == normalized_url
+        }) {
+            Self::from_server_entry(server)
+        } else {
+            // No matching server found, create without auth
+            Self::new(url, None, None, 30)
+        }
     }
 
     /// Create new client with explicit parameters

@@ -94,7 +94,14 @@ impl MehMcpServer {
                 let policy = config.get_write_policy(&kb_name);
                 let kb_config = config.get_kb(&kb_name);
                 let is_remote = kb_config.map(|k| k.kb_type == "remote").unwrap_or(false);
-                let url = kb_config.and_then(|k| k.url.clone());
+                
+                // Get URL from server config if this is a remote KB
+                let url = kb_config.and_then(|k| {
+                    k.server.as_ref().and_then(|srv_name| {
+                        config.get_server(srv_name).map(|s| s.url.clone())
+                    })
+                });
+                
                 (kb_name, policy, is_remote, url)
             }
             Err(_) => (
@@ -177,7 +184,7 @@ impl MehMcpServer {
                 "name": "meh",
                 "version": env!("CARGO_PKG_VERSION")
             },
-            "instructions": "meh is a knowledge base for AI agents. Use meh_search to find facts, meh_get_fact to read details, meh_browse to explore the path structure. Use meh_get_notifications and meh_ack_notifications to view and acknowledge session notifications."
+            "instructions": "meh is a knowledge base for AI agents. Use meh_search to find facts, meh_get_fact to read details, meh_browse to explore the path structure. Use meh_get_notifications and meh_ack_notifications to view and acknowledge session notifications. IMPORTANT: Before adding new facts, SEARCH first to avoid duplicates. Keep content concise and helpful. Don't duplicate existing information - extend or correct instead. Vote on facts you find interesting using meh_bulk_vote."
         }))
     }
 
@@ -186,7 +193,7 @@ impl MehMcpServer {
             "tools": [
                 {
                     "name": "meh_search",
-                    "description": "Search the knowledge base for facts matching a query. Returns summaries of matching facts. Use BEFORE answering questions - the answer might already exist! Example: meh_search({\"query\": \"authentication flow\"}) or meh_search({\"query\": \"bug\", \"path_filter\": \"@project/bugs\"}). Results are limited by `limit` and may be truncated; narrow your query or increase `limit` if needed. If you find proposals or TODOs from other AIs, consider voting with meh_extend.",
+                    "description": "Search the knowledge base for facts matching a query. Returns summaries of matching facts. Use BEFORE answering questions - the answer might already exist! Example: meh_search({\"query\": \"authentication flow\"}) or meh_search({\"query\": \"bug\", \"path_filter\": \"@project/bugs\"}). Results are limited by `limit` and may be truncated; narrow your query or increase `limit` if needed. If you find interesting facts, vote on them with meh_bulk_vote.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -247,7 +254,7 @@ impl MehMcpServer {
                 },
                 {
                     "name": "meh_add",
-                    "description": "Add a new fact to the knowledge base. Use to SAVE your discoveries, decisions, bug fixes, and learnings for future sessions! Example: meh_add({\"path\": \"@project/bugs/auth-issue\", \"content\": \"# Auth Bug\\n\\nFixed by...\", \"tags\": [\"bug\", \"fixed\"]}). Path conventions: @project/bugs/*, @project/architecture/*, @meh/todo/*",
+                    "description": "Add a new fact to the knowledge base. FIRST search to check if similar info exists - don't duplicate! Keep content concise and helpful. Use to save discoveries, decisions, bug fixes. Example: meh_add({\"path\": \"@project/bugs/auth-issue\", \"content\": \"# Auth Bug\\n\\nFixed by...\", \"tags\": [\"bug\", \"fixed\"]}). Path conventions: @project/bugs/*, @project/architecture/*, @meh/todo/*",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -428,18 +435,27 @@ impl MehMcpServer {
     }
 
     /// Check if search results contain proposals/todos that AI should consider voting on
+    /// Only counts proposals that THIS session hasn't voted on yet
     fn get_voting_hint(&self, facts: &[Fact]) -> String {
         let proposal_paths = ["@meh/todo/", "@meh/board/", "@meh/rfc/", "@meh/proposal/"];
 
-        let proposal_count = facts
+        // Filter to proposals that this session hasn't voted on yet
+        let unvoted_count = facts
             .iter()
             .filter(|f| proposal_paths.iter().any(|p| f.path.contains(p)))
+            .filter(|f| {
+                // Check if this session already voted on this fact
+                !self
+                    .storage
+                    .has_session_voted(&f.id, &self.session_id)
+                    .unwrap_or(true) // If error, assume already voted (don't show hint)
+            })
             .count();
 
-        if proposal_count > 0 {
+        if unvoted_count > 0 {
             format!(
-                "\n💡 **Tip:** Found {} proposal(s)/TODO(s). Consider adding your perspective with `meh_extend` (format: `## 🗳️ Vote\\n+1 for X because...`).\n",
-                proposal_count
+                "\n💡 **Tip:** Found {} proposal(s)/TODO(s) you haven't voted on yet. To vote, use `meh_bulk_vote` with votes array, e.g.: `meh_bulk_vote({{\"votes\": [{{\"fact_id\": \"meh-01XXX\", \"vote\": \"+1\", \"reason\": \"Agree because...\"}}]}})`\n",
+                unvoted_count
             )
         } else {
             String::new()
@@ -802,6 +818,7 @@ impl MehMcpServer {
         let mut extension = Fact::new(&original.path, &title, &tool_args.extension);
         extension.extends = vec![original_ulid];
         extension.fact_type = crate::core::fact::FactType::Extension;
+        extension.author_id = self.session_id.clone();
 
         // If write policy is "ask" (local KB), set status to pending_review
         let is_pending = self.write_policy == crate::config::WritePolicy::Ask;
@@ -1139,6 +1156,7 @@ impl MehMcpServer {
             let mut extension = Fact::new(&original.path, &title, &extension_content);
             extension.extends = vec![original_ulid];
             extension.fact_type = crate::core::fact::FactType::Extension;
+            extension.author_id = self.session_id.clone();
 
             // If write policy is ask (local), set pending
             let is_pending = self.write_policy == crate::config::WritePolicy::Ask;

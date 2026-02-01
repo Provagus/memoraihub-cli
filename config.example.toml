@@ -32,6 +32,24 @@ default_score = 0.5      # Initial trust for new facts
 decay_rate = 0.01        # Trust decay over time
 
 # =============================================================================
+# SERVERS (define remote servers with their credentials)
+# =============================================================================
+# Each server entry has: name, url, api_key, timeout_secs
+# The api_key is stored directly here (not in env var) for simplicity.
+
+# [[servers]]
+# name = "company"
+# url = "https://kb.company.com"
+# api_key = "meh_xxx_your_api_key_here"
+# timeout_secs = 30
+
+# [[servers]]
+# name = "memoraihub"
+# url = "https://api.memoraihub.com"
+# api_key = "meh_xxx_public_key"
+# timeout_secs = 30
+
+# =============================================================================
 # KNOWLEDGE BASES
 # =============================================================================
 [kbs]
@@ -56,27 +74,19 @@ write = "allow"    # "allow" | "deny" | "ask"
 # write = "ask"
 
 # --- Example: Remote company KB ---
+# For remote KBs, specify which server to use (from [[servers]]) and the KB slug
+#
 # [[kbs.kb]]
 # name = "company"
 # kb_type = "remote"
-# url = "https://kb.company.com"
-# api_key_env = "MEH_COMPANY_KEY"   # Read API key from this env var
+# server = "company"           # References [[servers]] entry by name
+# slug = "my-team-kb"          # The KB slug on that server
 # write = "allow"
 
 # --- Example: Public read-only KB ---
 # [[kbs.kb]]
 # name = "public"
 # kb_type = "remote"
-# url = "https://api.memoraihub.com"
-# api_key_env = "MEH_PUBLIC_KEY"
+# server = "memoraihub"
+# slug = "public-knowledge"
 # write = "deny"
-
-# =============================================================================
-# REMOTE SERVER (legacy, use kbs.kb instead)
-# =============================================================================
-[server]
-# url = "http://localhost:3000"
-# token = ""
-# api_key = ""
-# default_kb = ""
-# timeout_secs = 30

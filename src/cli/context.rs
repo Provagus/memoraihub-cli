@@ -1,13 +1,12 @@
 //! `meh context` command
 //!
-//! Manage active context (local or remote KB).
+//! Manage active context (which KB is primary).
 //!
 //! # Usage
 //! ```bash
-//! meh context                              # Show current context
-//! meh context set http://localhost:3000/my-kb  # Set remote context
-//! meh context set local                    # Switch to local
-//! meh context clear                        # Clear remote, use local
+//! meh context                   # Show current context
+//! meh context set <kb-name>     # Set primary KB
+//! meh context clear             # Clear primary, use first in list
 //! ```
 
 use anyhow::{bail, Result};
@@ -24,12 +23,12 @@ pub struct ContextArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum ContextCommand {
-    /// Set active context (URL/kb-slug or "local")
+    /// Set active context (KB name from config)
     Set {
-        /// Context: "local", "http://server/kb-slug", or just "kb-slug" (uses default server)
-        context: String,
+        /// KB name as defined in config
+        kb_name: String,
     },
-    /// Clear remote context, use local
+    /// Clear primary KB setting
     Clear,
     /// Show current context
     Show,
@@ -38,7 +37,7 @@ pub enum ContextCommand {
 pub fn run(args: ContextArgs) -> Result<()> {
     match args.command {
         None | Some(ContextCommand::Show) => show_context(),
-        Some(ContextCommand::Set { context }) => set_context(&context),
+        Some(ContextCommand::Set { kb_name }) => set_context(&kb_name),
         Some(ContextCommand::Clear) => clear_context(),
     }
 }
@@ -48,97 +47,84 @@ fn show_context() -> Result<()> {
 
     println!("📍 Current Context\n");
 
-    if let Some(url) = &config.server.url {
-        if let Some(kb) = &config.server.default_kb {
-            println!("   Mode:   Remote");
-            println!("   Server: {}", url);
-            println!("   KB:     {}", kb);
-            if config.server.token.is_some() {
-                println!("   Auth:   ✓ Token configured");
+    // Find primary KB
+    let primary_name = &config.kbs.primary;
+    let primary_kb = config.kbs.kb.iter().find(|k| &k.name == primary_name);
+
+    if let Some(kb) = primary_kb {
+        println!("   Primary: {} ({})", kb.name, kb.kb_type);
+        
+        match kb.kb_type.as_str() {
+            "sqlite" => {
+                if let Some(path) = &kb.path {
+                    println!("   Path:    {}", path);
+                }
             }
-        } else {
-            println!("   Mode:   Remote (no KB set)");
-            println!("   Server: {}", url);
-            println!("   ⚠️  Use 'meh context set {}/KB_SLUG' to set KB", url);
+            "remote" => {
+                if let Some(server_name) = &kb.server {
+                    if let Some(server) = config.get_server(server_name) {
+                        println!("   Server:  {} ({})", server_name, server.url);
+                    } else {
+                        println!("   Server:  {} (not configured)", server_name);
+                    }
+                }
+                if let Some(slug) = &kb.slug {
+                    println!("   Slug:    {}", slug);
+                }
+            }
+            _ => {}
         }
+        println!("   Write:   {:?}", kb.write);
+    } else if !config.kbs.kb.is_empty() {
+        println!("   ⚠️  Primary '{}' not found in config", primary_name);
+        println!("   Available KBs: {}", config.kbs.kb.iter().map(|k| k.name.as_str()).collect::<Vec<_>>().join(", "));
     } else {
-        println!("   Mode:   Local");
-        println!("   DB:     {}", config.data_dir().display());
+        println!("   No KBs configured");
     }
 
     println!("\n💡 Commands:");
-    println!("   meh context set http://server:3000/kb-slug  # Use remote");
-    println!("   meh context set local                       # Use local");
-    println!("   meh context clear                           # Clear remote");
+    println!("   meh context set <kb-name>   # Set primary KB");
+    println!("   meh kbs list                # List all KBs");
+    println!("   meh kbs add                 # Add a new KB");
 
     Ok(())
 }
 
-fn set_context(context: &str) -> Result<()> {
+fn set_context(kb_name: &str) -> Result<()> {
     let mut config = Config::load()?;
 
-    if context == "local" {
-        // Switch to local
-        config.server.url = None;
-        config.server.default_kb = None;
-        save_config(&config)?;
-        println!("✅ Switched to local context");
-        println!("   DB: {}", config.data_dir().display());
-        return Ok(());
+    // Check if KB exists
+    if !config.kbs.kb.iter().any(|k| k.name == kb_name) {
+        let available: Vec<_> = config.kbs.kb.iter().map(|k| k.name.as_str()).collect();
+        if available.is_empty() {
+            bail!("No KBs configured. Use 'meh kbs add' to add one.");
+        } else {
+            bail!("KB '{}' not found. Available: {}", kb_name, available.join(", "));
+        }
     }
 
-    // Parse URL/kb-slug
-    // Formats:
-    //   http://localhost:3000/my-kb -> server=http://localhost:3000, kb=my-kb
-    //   my-kb -> uses existing server URL, sets kb=my-kb
+    config.kbs.primary = kb_name.to_string();
+    save_config(&config)?;
 
-    if context.starts_with("http://") || context.starts_with("https://") {
-        // Full URL with KB slug
-        let url = url::Url::parse(context)?;
-        let path = url.path().trim_start_matches('/');
-
-        if path.is_empty() {
-            bail!("URL must include KB slug: {}/KB_SLUG", context);
-        }
-
-        // Extract server base URL and KB slug
-        let mut base_url = url.clone();
-        base_url.set_path("");
-
-        config.server.url = Some(base_url.to_string().trim_end_matches('/').to_string());
-        config.server.default_kb = Some(path.to_string());
-
-        save_config(&config)?;
-        println!("✅ Remote context set");
-        println!("   Server: {}", config.server.url.as_ref().unwrap());
-        println!("   KB:     {}", path);
-    } else {
-        // Just KB slug - use existing server or error
-        if config.server.url.is_none() {
-            bail!(
-                "No server configured. Use full URL:\n\
-                 meh context set http://localhost:3000/{}",
-                context
-            );
-        }
-
-        config.server.default_kb = Some(context.to_string());
-        save_config(&config)?;
-        println!("✅ KB changed to: {}", context);
-        println!("   Server: {}", config.server.url.as_ref().unwrap());
-    }
+    let kb = config.kbs.kb.iter().find(|k| k.name == kb_name).unwrap();
+    println!("✅ Primary KB set to: {}", kb_name);
+    println!("   Type: {}", kb.kb_type);
 
     Ok(())
 }
 
 fn clear_context() -> Result<()> {
     let mut config = Config::load()?;
-    config.server.url = None;
-    config.server.default_kb = None;
+    
+    // Set to first KB or "default"
+    let new_primary = config.kbs.kb.first()
+        .map(|k| k.name.clone())
+        .unwrap_or_else(|| "default".to_string());
+    
+    config.kbs.primary = new_primary.clone();
     save_config(&config)?;
 
-    println!("✅ Remote context cleared");
-    println!("   Now using local: {}", config.data_dir().display());
+    println!("✅ Primary KB reset to: {}", new_primary);
 
     Ok(())
 }

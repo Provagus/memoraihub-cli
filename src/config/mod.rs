@@ -20,8 +20,9 @@ pub struct Config {
     #[serde(default)]
     pub trust: TrustConfig,
 
+    /// Remote servers configuration
     #[serde(default)]
-    pub server: ServerConfig,
+    pub servers: Vec<ServerEntry>,
 
     /// Knowledge base configurations
     #[serde(default)]
@@ -158,40 +159,22 @@ fn default_decay_rate() -> f32 {
     0.01
 }
 
-/// Server configuration for remote knowledge bases
+/// Server entry - defines a remote server with auth
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServerConfig {
-    /// Server URL (e.g., "http://localhost:3000")
-    #[serde(default)]
-    pub url: Option<String>,
+pub struct ServerEntry {
+    /// Server name/identifier (referenced by KBs)
+    pub name: String,
 
-    /// Authentication token (JWT access token)
-    #[serde(default)]
-    pub token: Option<String>,
+    /// Server URL (e.g., "https://api.memoraihub.com")
+    pub url: String,
 
-    /// API key for AI agents (meh_xxx format)
+    /// API key for authentication (meh_xxx format)
     #[serde(default)]
     pub api_key: Option<String>,
-
-    /// Default knowledge base slug
-    #[serde(default)]
-    pub default_kb: Option<String>,
 
     /// Connection timeout in seconds
     #[serde(default = "default_server_timeout")]
     pub timeout_secs: u64,
-}
-
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            url: None,
-            token: None,
-            api_key: None,
-            default_kb: None,
-            timeout_secs: default_server_timeout(),
-        }
-    }
 }
 
 fn default_server_timeout() -> u64 {
@@ -228,17 +211,17 @@ pub struct KbConfig {
     #[serde(default = "default_kb_type")]
     pub kb_type: String,
 
-    /// Path for sqlite, URL for remote
+    /// Path for sqlite KB
     #[serde(default)]
     pub path: Option<String>,
 
-    /// URL for remote KB
+    /// Server name (for remote KB - references [[servers]] entry)
     #[serde(default)]
-    pub url: Option<String>,
+    pub server: Option<String>,
 
-    /// Environment variable name for API key
+    /// KB slug on the remote server
     #[serde(default)]
-    pub api_key_env: Option<String>,
+    pub slug: Option<String>,
 
     /// Write policy: allow, deny, ask
     #[serde(default = "default_write_policy")]
@@ -268,6 +251,7 @@ fn default_write_policy() -> WritePolicy {
 
 impl Config {
     /// Load config from default locations
+    /// Creates default config file if none exists
     pub fn load() -> Result<Self> {
         // Try local config first, then global
         if let Some(local) = Self::find_local_config() {
@@ -280,8 +264,14 @@ impl Config {
             }
         }
 
-        // Return default config
-        Ok(Self::default())
+        // No config exists - create default global config
+        let config = Self::default();
+        if let Some(global_path) = Self::global_config_path() {
+            // Try to create default config file (ignore errors - may not have permissions)
+            let _ = config.save_to(&global_path);
+        }
+
+        Ok(config)
     }
 
     /// Load config from a specific file
@@ -390,6 +380,18 @@ impl Config {
     /// Get KB config by name
     pub fn get_kb(&self, kb_name: &str) -> Option<&KbConfig> {
         self.kbs.kb.iter().find(|kb| kb.name == kb_name)
+    }
+
+    /// Get server config by name
+    pub fn get_server(&self, server_name: &str) -> Option<&ServerEntry> {
+        self.servers.iter().find(|s| s.name == server_name)
+    }
+
+    /// Get server for a KB (if remote)
+    pub fn get_server_for_kb(&self, kb_name: &str) -> Option<&ServerEntry> {
+        self.get_kb(kb_name)
+            .and_then(|kb| kb.server.as_ref())
+            .and_then(|server_name| self.get_server(server_name))
     }
 
     /// Get primary KB name

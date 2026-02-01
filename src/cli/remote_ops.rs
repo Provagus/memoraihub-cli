@@ -21,13 +21,7 @@ pub struct RemoteSearchOptions<'a> {
 /// Execute remote search
 pub async fn remote_search(opts: RemoteSearchOptions<'_>) -> Result<()> {
     let config = Config::load()?;
-
-    let client = RemoteClient::new(
-        opts.server_url,
-        config.server.token.clone(),
-        config.server.api_key.clone(),
-        config.server.timeout_secs,
-    )?;
+    let client = RemoteClient::from_url_with_config(opts.server_url, &config)?;
 
     let results = client
         .search(opts.kb_slug, opts.query, opts.limit, opts.path_filter)
@@ -95,13 +89,7 @@ pub struct RemoteAddOptions<'a> {
 /// Execute remote add
 pub async fn remote_add(opts: RemoteAddOptions<'_>) -> Result<()> {
     let config = Config::load()?;
-
-    let client = RemoteClient::new(
-        opts.server_url,
-        config.server.token.clone(),
-        config.server.api_key.clone(),
-        config.server.timeout_secs,
-    )?;
+    let client = RemoteClient::from_url_with_config(opts.server_url, &config)?;
 
     let req = crate::remote::CreateFactRequest {
         path: opts.path.to_string(),
@@ -130,13 +118,7 @@ pub struct RemoteShowOptions<'a> {
 /// Execute remote show
 pub async fn remote_show(opts: RemoteShowOptions<'_>) -> Result<()> {
     let config = Config::load()?;
-
-    let client = RemoteClient::new(
-        opts.server_url,
-        config.server.token.clone(),
-        config.server.api_key.clone(),
-        config.server.timeout_secs,
-    )?;
+    let client = RemoteClient::from_url_with_config(opts.server_url, &config)?;
 
     let fact = client.get_fact(opts.kb_slug, opts.fact_id).await?;
 
@@ -186,13 +168,7 @@ pub struct RemoteBrowseOptions<'a> {
 /// Execute remote browse (ls)
 pub async fn remote_browse(opts: RemoteBrowseOptions<'_>) -> Result<()> {
     let config = Config::load()?;
-
-    let client = RemoteClient::new(
-        opts.server_url,
-        config.server.token.clone(),
-        config.server.api_key.clone(),
-        config.server.timeout_secs,
-    )?;
+    let client = RemoteClient::from_url_with_config(opts.server_url, &config)?;
 
     let nodes = client.browse(opts.kb_slug, opts.path, opts.depth).await?;
 

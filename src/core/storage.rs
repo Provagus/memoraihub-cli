@@ -349,6 +349,30 @@ impl Storage {
         Ok(())
     }
 
+    /// Check if a session (by author_id prefix) has already voted/extended a specific fact
+    ///
+    /// Returns true if there exists an extension fact where:
+    /// - extends contains the target fact ID
+    /// - author_id starts with the given session prefix (e.g., "mcp-")
+    pub fn has_session_voted(&self, fact_id: &Ulid, session_prefix: &str) -> Result<bool> {
+        // extends is stored as JSON array, so we search for the ID string within it
+        let count: i64 = self.conn.query_row(
+            r#"
+            SELECT COUNT(*) FROM facts 
+            WHERE fact_type = 'extension' 
+            AND extends LIKE ?1
+            AND author_id LIKE ?2
+            AND status != 'deprecated'
+            "#,
+            params![
+                format!("%{}%", fact_id.to_string()),
+                format!("{}%", session_prefix)
+            ],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
     /// Get history chain for a fact (follow supersedes backwards)
     /// Returns list of facts from oldest to newest
     pub fn get_history_chain(&self, id: &Ulid) -> Result<Vec<Fact>> {
