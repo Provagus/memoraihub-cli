@@ -401,7 +401,7 @@ impl Config {
 }
 
 /// Helper to get directories crate functionality
-mod dirs {
+pub mod dirs {
     use std::path::PathBuf;
 
     pub fn home_dir() -> Option<PathBuf> {

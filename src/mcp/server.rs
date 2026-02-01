@@ -26,19 +26,26 @@ impl MehMcpServer {
     /// Handle a JSON-RPC request
     fn handle_request(&mut self, request: &JsonRpcRequest) -> Option<JsonRpcResponse> {
         let id = request.id.clone().unwrap_or(Value::Null);
+        let debug = std::env::var("MEH_DEBUG").is_ok();
 
         // Notifications (no id) don't get responses
         if request.id.is_none() {
             match request.method.as_str() {
                 "notifications/initialized" => {
                     self.state.initialized = true;
-                    eprintln!("MCP: Client initialized");
+                    if debug {
+                        eprintln!("MCP: Client initialized");
+                    }
                 }
                 "notifications/cancelled" => {
-                    eprintln!("MCP: Request cancelled");
+                    if debug {
+                        eprintln!("MCP: Request cancelled");
+                    }
                 }
                 _ => {
-                    eprintln!("MCP: Unknown notification: {}", request.method);
+                    if debug {
+                        eprintln!("MCP: Unknown notification: {}", request.method);
+                    }
                 }
             }
             return None;
@@ -108,7 +115,11 @@ impl MehMcpServer {
 
 /// Run the MCP server with STDIO transport
 pub fn run_mcp_server(db_path: std::path::PathBuf) -> anyhow::Result<()> {
-    eprintln!("meh MCP server starting...");
+    let debug = std::env::var("MEH_DEBUG").is_ok();
+
+    if debug {
+        eprintln!("meh MCP server starting...");
+    }
 
     let storage = Storage::open(&db_path)?;
 
@@ -127,7 +138,9 @@ pub fn run_mcp_server(db_path: std::path::PathBuf) -> anyhow::Result<()> {
             continue;
         }
 
-        eprintln!("MCP: Received: {}", &line[..line.len().min(100)]);
+        if debug {
+            eprintln!("MCP: Received: {}", &line[..line.len().min(100)]);
+        }
 
         let request: JsonRpcRequest = match serde_json::from_str(&line) {
             Ok(req) => req,
@@ -143,13 +156,17 @@ pub fn run_mcp_server(db_path: std::path::PathBuf) -> anyhow::Result<()> {
 
         if let Some(response) = server.handle_request(&request) {
             let json = serde_json::to_string(&response)?;
-            eprintln!("MCP: Sending: {}", &json[..json.len().min(100)]);
+            if debug {
+                eprintln!("MCP: Sending: {}", &json[..json.len().min(100)]);
+            }
             writeln!(stdout, "{}", json)?;
             stdout.flush()?;
         }
     }
 
-    eprintln!("meh MCP server stopping.");
+    if debug {
+        eprintln!("meh MCP server stopping.");
+    }
     Ok(())
 }
 
