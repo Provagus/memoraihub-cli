@@ -200,20 +200,22 @@ pub fn do_correct(state: &mut ServerState, args: &Value) -> ToolResult {
     let tool_args: MehCorrectTool =
         serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
-    // Parse original fact ID
-    let ulid_str = tool_args
-        .fact_id
-        .strip_prefix("meh-")
-        .ok_or("Invalid ID format - expected meh-XXX")?;
-    let original_ulid =
-        Ulid::from_string(ulid_str).map_err(|e| format!("Invalid ULID: {}", e))?;
-
-    // Get original fact (for path)
-    let original = state
+    // Resolve to latest version (handles both ID and path, auto-follows supersede chain)
+    let (original, was_resolved) = state
         .storage
-        .get_by_id(&original_ulid)
+        .resolve_to_latest(&tool_args.fact_id)
         .map_err(|e| format!("Error: {}", e))?
-        .ok_or_else(|| format!("Original fact not found: {}", tool_args.fact_id))?;
+        .ok_or_else(|| format!("Fact not found: {}", tool_args.fact_id))?;
+
+    let original_ulid = original.id;
+    let original_id_str = format!("meh-{}", original_ulid);
+
+    // Warn if we had to resolve to a newer version
+    let resolve_note = if was_resolved {
+        format!("\n  ⚠️ Note: Original was superseded, correcting latest version: {}", original_id_str)
+    } else {
+        String::new()
+    };
 
     // If remote KB with "ask" policy, queue locally
     if state.is_remote_kb && state.write_policy == WritePolicy::Ask {
@@ -223,7 +225,7 @@ pub fn do_correct(state: &mut ServerState, args: &Value) -> ToolResult {
             state.remote_url.as_deref().unwrap_or(""),
             &original.path,
             &tool_args.new_content,
-            &tool_args.fact_id,
+            &original_id_str,
         );
         let id = pending.id;
         queue
@@ -231,8 +233,8 @@ pub fn do_correct(state: &mut ServerState, args: &Value) -> ToolResult {
             .map_err(|e| format!("Queue error: {}", e))?;
 
         return Ok(format!(
-            "⏳ Queued correction for remote KB '{}' (pending approval): queue-{}\n  Will supersede: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
-            state.kb_name, id, tool_args.fact_id
+            "⏳ Queued correction for remote KB '{}' (pending approval): queue-{}\n  Will supersede: {}{}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            state.kb_name, id, original_id_str, resolve_note
         ));
     }
 
@@ -264,13 +266,13 @@ pub fn do_correct(state: &mut ServerState, args: &Value) -> ToolResult {
 
     if is_pending {
         Ok(format!(
-            "⏳ Created correction (pending review): meh-{}\n  Will supersede: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
-            new_id, tool_args.fact_id
+            "⏳ Created correction (pending review): meh-{}\n  Will supersede: {}{}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            new_id, original_id_str, resolve_note
         ))
     } else {
         Ok(format!(
-            "✓ Created correction: meh-{}\n  Supersedes: {}",
-            new_id, tool_args.fact_id
+            "✓ Created correction: meh-{}\n  Supersedes: {}{}",
+            new_id, original_id_str, resolve_note
         ))
     }
 }
@@ -282,20 +284,22 @@ pub fn do_extend(state: &mut ServerState, args: &Value) -> ToolResult {
     let tool_args: MehExtendTool =
         serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
-    // Parse original fact ID
-    let ulid_str = tool_args
-        .fact_id
-        .strip_prefix("meh-")
-        .ok_or("Invalid ID format - expected meh-XXX")?;
-    let original_ulid =
-        Ulid::from_string(ulid_str).map_err(|e| format!("Invalid ULID: {}", e))?;
-
-    // Get original fact
-    let original = state
+    // Resolve to latest version (handles both ID and path, auto-follows supersede chain)
+    let (original, was_resolved) = state
         .storage
-        .get_by_id(&original_ulid)
+        .resolve_to_latest(&tool_args.fact_id)
         .map_err(|e| format!("Error: {}", e))?
-        .ok_or_else(|| format!("Original fact not found: {}", tool_args.fact_id))?;
+        .ok_or_else(|| format!("Fact not found: {}", tool_args.fact_id))?;
+
+    let original_ulid = original.id;
+    let original_id_str = format!("meh-{}", original_ulid);
+
+    // Warn if we had to resolve to a newer version
+    let resolve_note = if was_resolved {
+        format!("\n  ⚠️ Note: Original was superseded, extending latest version: {}", original_id_str)
+    } else {
+        String::new()
+    };
 
     // If remote KB with "ask" policy, queue locally
     if state.is_remote_kb && state.write_policy == WritePolicy::Ask {
@@ -305,7 +309,7 @@ pub fn do_extend(state: &mut ServerState, args: &Value) -> ToolResult {
             state.remote_url.as_deref().unwrap_or(""),
             &original.path,
             &tool_args.extension,
-            &tool_args.fact_id,
+            &original_id_str,
         );
         let id = pending.id;
         queue
@@ -313,8 +317,8 @@ pub fn do_extend(state: &mut ServerState, args: &Value) -> ToolResult {
             .map_err(|e| format!("Queue error: {}", e))?;
 
         return Ok(format!(
-            "⏳ Queued extension for remote KB '{}' (pending approval): queue-{}\n  Will extend: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
-            state.kb_name, id, tool_args.fact_id
+            "⏳ Queued extension for remote KB '{}' (pending approval): queue-{}\n  Will extend: {}{}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            state.kb_name, id, original_id_str, resolve_note
         ));
     }
 
@@ -339,13 +343,13 @@ pub fn do_extend(state: &mut ServerState, args: &Value) -> ToolResult {
 
     if is_pending {
         Ok(format!(
-            "⏳ Created extension (pending review): meh-{}\n  Will extend: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
-            new_id, tool_args.fact_id
+            "⏳ Created extension (pending review): meh-{}\n  Will extend: {}{}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            new_id, original_id_str, resolve_note
         ))
     } else {
         Ok(format!(
-            "✓ Created extension: meh-{}\n  Extends: {}",
-            new_id, tool_args.fact_id
+            "✓ Created extension: meh-{}\n  Extends: {}{}",
+            new_id, original_id_str, resolve_note
         ))
     }
 }
@@ -357,13 +361,30 @@ pub fn do_deprecate(state: &mut ServerState, args: &Value) -> ToolResult {
     let tool_args: MehDeprecateTool =
         serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
+    // Resolve to latest version (handles both ID and path, auto-follows supersede chain)
+    let (original, was_resolved) = state
+        .storage
+        .resolve_to_latest(&tool_args.fact_id)
+        .map_err(|e| format!("Error: {}", e))?
+        .ok_or_else(|| format!("Fact not found: {}", tool_args.fact_id))?;
+
+    let original_ulid = original.id;
+    let original_id_str = format!("meh-{}", original_ulid);
+
+    // Warn if we had to resolve to a newer version
+    let resolve_note = if was_resolved {
+        format!("\n  ⚠️ Note: Original was superseded, deprecating latest version: {}", original_id_str)
+    } else {
+        String::new()
+    };
+
     // If remote KB with "ask" policy, queue locally
     if state.is_remote_kb && state.write_policy == WritePolicy::Ask {
         let queue = state.open_pending_queue()?;
         let pending = PendingWrite::new_deprecate(
             &state.kb_name,
             state.remote_url.as_deref().unwrap_or(""),
-            &tool_args.fact_id,
+            &original_id_str,
             tool_args.reason.as_deref(),
         );
         let id = pending.id;
@@ -372,24 +393,17 @@ pub fn do_deprecate(state: &mut ServerState, args: &Value) -> ToolResult {
             .map_err(|e| format!("Queue error: {}", e))?;
 
         return Ok(format!(
-            "⏳ Queued deprecation for remote KB '{}' (pending approval): queue-{}\n  Fact: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
-            state.kb_name, id, tool_args.fact_id
+            "⏳ Queued deprecation for remote KB '{}' (pending approval): queue-{}\n  Fact: {}{}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            state.kb_name, id, original_id_str, resolve_note
         ));
     }
 
-    // Parse fact ID
-    let ulid_str = tool_args
-        .fact_id
-        .strip_prefix("meh-")
-        .ok_or("Invalid ID format - expected meh-XXX")?;
-    let ulid = Ulid::from_string(ulid_str).map_err(|e| format!("Invalid ULID: {}", e))?;
-
     state
         .storage
-        .mark_deprecated(&ulid)
+        .mark_deprecated(&original_ulid)
         .map_err(|e| format!("Deprecate error: {}", e))?;
 
-    Ok(format!("✓ Deprecated fact: {}", tool_args.fact_id))
+    Ok(format!("✓ Deprecated fact: {}{}", original_id_str, resolve_note))
 }
 
 /// Get default readme content when no @readme fact exists

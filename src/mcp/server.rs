@@ -244,7 +244,7 @@ fn tool_definitions() -> Vec<Value> {
                     "path": { "type": "string", "description": "Fact path (for 'add'). Start with @, use lowercase kebab-case" },
                     "content": { "type": "string", "description": "Markdown content (for 'add'). First line = title" },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for categorization" },
-                    "fact_id": { "type": "string", "description": "Target fact ID meh-XXX (for 'correct', 'extend', 'deprecate')" },
+                    "fact_id": { "type": "string", "description": "Target fact: ID (meh-XXX) OR path (@path/to/fact). Auto-resolves to latest version if superseded." },
                     "new_content": { "type": "string", "description": "Replacement content (for 'correct')" },
                     "extension": { "type": "string", "description": "Additional content to append (for 'extend')" },
                     "reason": { "type": "string", "description": "Reason for change (for 'correct', 'deprecate')" },
