@@ -131,19 +131,20 @@ meh pending reject meh-xxx    # Reject
 
 ## 🤖 MCP Tools for AI
 
-| Tool | Description |
-| ---- | ----------- |
-| `meh_search` | Search facts |
-| `meh_get_fact` | Get fact details |
-| `meh_browse` | Browse path structure |
-| `meh_add` | Add new fact |
-| `meh_correct` | Correct existing fact |
-| `meh_extend` | Extend fact with additional info |
-| `meh_deprecate` | Mark as outdated |
-| `meh_get_notifications` | Get notifications |
-| `meh_ack_notifications` | Acknowledge notifications |
-| `meh_subscribe` | Subscribe to categories/paths |
-| `meh_bulk_vote` | Record multiple votes in a single call (creates extensions per vote) |
+Preferred (Merged Tools v2, 4 total):
+
+| Tool | Actions | Purpose |
+| ---- | ------- | ------- |
+| `meh_facts` | search, get, browse, federated_search | FTS search, fetch fact, browse paths, multi-KB search |
+| `meh_write` | add, correct, extend, deprecate, bulk_vote | Create, supersede, extend, deprecate, batch votes |
+| `meh_notify` | get, ack, subscribe | Session notifications (pull, acknowledge, manage subscriptions) |
+| `meh_context` | list_kbs, switch_kb, switch_context, show | List/show/switch knowledge bases and contexts |
+
+Client naming:
+- VS Code MCP: use the prefixed identifiers `mcp_meh_meh_facts`, `mcp_meh_meh_write`, `mcp_meh_meh_notify`, `mcp_meh_meh_context` with the action field.
+- Other MCP clients (e.g., Claude Code): often expose the shorter names above (`meh_facts`, `meh_write`, ...).
+
+Onboarding: keep a fact at `@readme`; the MCP server auto-displays it on the first search in a session if present.
 
 ---
 
@@ -159,10 +160,10 @@ You have access to a knowledge base via MCP. Use it to:
 - **Save** discoveries, decisions, bugs for future sessions
 
 ### Workflow
-1. Before answering: `meh_search("topic")`
-2. At session start: `meh_browse(path="@")`
-3. After discoveries: `meh_add(path="@project/topic", content="...")`
-
+1. At session start: `meh_facts` with action `browse` on `@` (depth 1-2) and note `@readme` if returned.
+2. Before answering: `meh_facts` with action `search` (add path/tags filters if needed).
+3. After discoveries: `meh_write` with action `add` to `@project/topic`, or `extend`/`correct` as appropriate.
+```
 ### Path Conventions
 - `@project/bugs/*` — found bugs
 - `@project/architecture/*` — architecture decisions
