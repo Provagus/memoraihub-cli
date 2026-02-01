@@ -69,7 +69,7 @@ pub fn run(args: ConfigArgs) -> Result<()> {
 
     if args.edit {
         let editor = std::env::var("EDITOR").unwrap_or_else(|_| "notepad".to_string());
-        
+
         // Create config file if it doesn't exist
         if !config_path.exists() {
             if let Some(parent) = config_path.parent() {
@@ -78,7 +78,7 @@ pub fn run(args: ConfigArgs) -> Result<()> {
             fs::write(&config_path, "# meh configuration\n\n")?;
             println!("Created {}", config_path.display());
         }
-        
+
         std::process::Command::new(&editor)
             .arg(&config_path)
             .status()
@@ -193,17 +193,17 @@ fn parse_toml_value(s: &str) -> toml_edit::Value {
     if s == "false" {
         return toml_edit::value(false).into_value().unwrap();
     }
-    
+
     // Try integer
     if let Ok(i) = s.parse::<i64>() {
         return toml_edit::value(i).into_value().unwrap();
     }
-    
+
     // Try float
     if let Ok(f) = s.parse::<f64>() {
         return toml_edit::value(f).into_value().unwrap();
     }
-    
+
     // Default to string
     toml_edit::value(s).into_value().unwrap()
 }

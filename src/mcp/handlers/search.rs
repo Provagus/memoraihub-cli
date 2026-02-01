@@ -93,8 +93,13 @@ pub fn do_federated_search(_state: &ServerState, args: &Value) -> ToolResult {
     let timeout = Duration::from_secs(config.search.federated_timeout_secs);
 
     for kb_name in &kbs_to_search {
-        match search_single_kb(&config, kb_name, &tool_args.query, tool_args.limit_per_kb, timeout)
-        {
+        match search_single_kb(
+            &config,
+            kb_name,
+            &tool_args.query,
+            tool_args.limit_per_kb,
+            timeout,
+        ) {
             Ok(facts) => all_results.push((kb_name.clone(), facts)),
             Err(e) => errors.push(e),
         }
@@ -179,7 +184,8 @@ fn search_sqlite_kb(
         config.data_dir()
     };
 
-    let storage = Storage::open(&db_path).map_err(|e| format!("{}: open error: {}", kb_config.name, e))?;
+    let storage =
+        Storage::open(&db_path).map_err(|e| format!("{}: open error: {}", kb_config.name, e))?;
 
     storage
         .search(query, limit)

@@ -209,8 +209,8 @@ fn tool_definitions() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "action": { 
-                        "type": "string", 
+                    "action": {
+                        "type": "string",
                         "enum": ["search", "get", "browse", "federated_search"],
                         "description": "Action to perform"
                     },
@@ -236,8 +236,8 @@ fn tool_definitions() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "action": { 
-                        "type": "string", 
+                    "action": {
+                        "type": "string",
                         "enum": ["add", "correct", "extend", "deprecate", "bulk_vote"],
                         "description": "Action to perform"
                     },
@@ -248,8 +248,8 @@ fn tool_definitions() -> Vec<Value> {
                     "new_content": { "type": "string", "description": "Replacement content (for 'correct')" },
                     "extension": { "type": "string", "description": "Additional content to append (for 'extend')" },
                     "reason": { "type": "string", "description": "Reason for change (for 'correct', 'deprecate')" },
-                    "votes": { 
-                        "type": "array", 
+                    "votes": {
+                        "type": "array",
                         "items": {
                             "type": "object",
                             "properties": {
@@ -272,8 +272,8 @@ fn tool_definitions() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "action": { 
-                        "type": "string", 
+                    "action": {
+                        "type": "string",
                         "enum": ["get", "ack", "subscribe"],
                         "description": "Action to perform"
                     },
@@ -294,8 +294,8 @@ fn tool_definitions() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "action": { 
-                        "type": "string", 
+                    "action": {
+                        "type": "string",
                         "enum": ["list_kbs", "switch_kb", "switch_context", "show"],
                         "description": "Action to perform"
                     },

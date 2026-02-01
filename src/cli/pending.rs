@@ -318,7 +318,10 @@ fn run_interactive_review(
                     }
                     stats.approved += 1;
                 }
-                println!("\x1b[32m🚀 Approved {} remaining items!\x1b[0m\n", items.len() - idx);
+                println!(
+                    "\x1b[32m🚀 Approved {} remaining items!\x1b[0m\n",
+                    items.len() - idx
+                );
                 break;
             }
             5 => {
@@ -683,7 +686,10 @@ fn push_to_remote(item: &PendingWrite, config: &Config) -> Result<()> {
             (endpoint, payload)
         }
         PendingWriteType::Deprecate => {
-            let endpoint = format!("{}/api/v1/kbs/{}/facts/{}/deprecate", server.url, slug, item.path);
+            let endpoint = format!(
+                "{}/api/v1/kbs/{}/facts/{}/deprecate",
+                server.url, slug, item.path
+            );
             let payload = serde_json::json!({
                 "reason": item.reason,
             });

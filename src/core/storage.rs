@@ -374,10 +374,10 @@ impl Storage {
     }
 
     /// Resolve a fact ID or path to the latest active version
-    /// 
+    ///
     /// If given a superseded fact ID, follows the chain to find the latest.
     /// If given a path, returns the most recent active fact at that path.
-    /// 
+    ///
     /// Returns (latest_fact, was_resolved) - was_resolved is true if we had to follow chain
     pub fn resolve_to_latest(&self, id_or_path: &str) -> Result<Option<(Fact, bool)>> {
         // Try as ID first
@@ -388,7 +388,11 @@ impl Storage {
                     if fact.status == crate::core::fact::Status::Superseded {
                         // Follow chain forward to find latest
                         let chain = self.get_superseding_facts(&ulid)?;
-                        if let Some(latest) = chain.into_iter().filter(|f| f.status == crate::core::fact::Status::Active).last() {
+                        if let Some(latest) = chain
+                            .into_iter()
+                            .filter(|f| f.status == crate::core::fact::Status::Active)
+                            .last()
+                        {
                             return Ok(Some((latest, true)));
                         }
                         // No active version found in chain
@@ -398,13 +402,13 @@ impl Storage {
                 }
             }
         }
-        
+
         // Try as path - get most recent active fact
         let facts = self.get_by_path(id_or_path)?;
         if let Some(fact) = facts.into_iter().next() {
             return Ok(Some((fact, false)));
         }
-        
+
         Ok(None)
     }
 

@@ -101,7 +101,11 @@ pub fn do_browse(state: &ServerState, args: &Value) -> ToolResult {
     // Use list_children with pagination
     let (entries, has_more) = state
         .storage
-        .list_children(&tool_args.path, tool_args.limit, tool_args.cursor.as_deref())
+        .list_children(
+            &tool_args.path,
+            tool_args.limit,
+            tool_args.cursor.as_deref(),
+        )
         .map_err(|e| format!("Browse error: {}", e))?;
 
     if entries.is_empty() {
@@ -212,7 +216,10 @@ pub fn do_correct(state: &mut ServerState, args: &Value) -> ToolResult {
 
     // Warn if we had to resolve to a newer version
     let resolve_note = if was_resolved {
-        format!("\n  ⚠️ Note: Original was superseded, correcting latest version: {}", original_id_str)
+        format!(
+            "\n  ⚠️ Note: Original was superseded, correcting latest version: {}",
+            original_id_str
+        )
     } else {
         String::new()
     };
@@ -296,7 +303,10 @@ pub fn do_extend(state: &mut ServerState, args: &Value) -> ToolResult {
 
     // Warn if we had to resolve to a newer version
     let resolve_note = if was_resolved {
-        format!("\n  ⚠️ Note: Original was superseded, extending latest version: {}", original_id_str)
+        format!(
+            "\n  ⚠️ Note: Original was superseded, extending latest version: {}",
+            original_id_str
+        )
     } else {
         String::new()
     };
@@ -373,7 +383,10 @@ pub fn do_deprecate(state: &mut ServerState, args: &Value) -> ToolResult {
 
     // Warn if we had to resolve to a newer version
     let resolve_note = if was_resolved {
-        format!("\n  ⚠️ Note: Original was superseded, deprecating latest version: {}", original_id_str)
+        format!(
+            "\n  ⚠️ Note: Original was superseded, deprecating latest version: {}",
+            original_id_str
+        )
     } else {
         String::new()
     };
@@ -403,7 +416,10 @@ pub fn do_deprecate(state: &mut ServerState, args: &Value) -> ToolResult {
         .mark_deprecated(&original_ulid)
         .map_err(|e| format!("Deprecate error: {}", e))?;
 
-    Ok(format!("✓ Deprecated fact: {}{}", original_id_str, resolve_note))
+    Ok(format!(
+        "✓ Deprecated fact: {}{}",
+        original_id_str, resolve_note
+    ))
 }
 
 /// Get default readme content when no @readme fact exists

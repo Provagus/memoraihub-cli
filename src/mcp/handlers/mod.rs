@@ -80,7 +80,9 @@ fn dispatch_facts(state: &mut ServerState, args: &Value) -> ToolResult {
             search::do_search(state, &legacy_args)
         }
         "get" => {
-            let id_or_path = tool_args.id_or_path.ok_or("Missing 'id_or_path' for get action")?;
+            let id_or_path = tool_args
+                .id_or_path
+                .ok_or("Missing 'id_or_path' for get action")?;
             let legacy_args = serde_json::json!({
                 "id_or_path": id_or_path,
                 "include_history": tool_args.include_history
@@ -98,7 +100,9 @@ fn dispatch_facts(state: &mut ServerState, args: &Value) -> ToolResult {
             facts::do_browse(state, &legacy_args)
         }
         "federated_search" => {
-            let query = tool_args.query.ok_or("Missing 'query' for federated_search action")?;
+            let query = tool_args
+                .query
+                .ok_or("Missing 'query' for federated_search action")?;
             let legacy_args = serde_json::json!({
                 "query": query,
                 "kbs": tool_args.kbs,
@@ -121,7 +125,9 @@ fn dispatch_write(state: &mut ServerState, args: &Value) -> ToolResult {
     match tool_args.action.as_str() {
         "add" => {
             let path = tool_args.path.ok_or("Missing 'path' for add action")?;
-            let content = tool_args.content.ok_or("Missing 'content' for add action")?;
+            let content = tool_args
+                .content
+                .ok_or("Missing 'content' for add action")?;
             let legacy_args = serde_json::json!({
                 "path": path,
                 "content": content,
@@ -130,8 +136,12 @@ fn dispatch_write(state: &mut ServerState, args: &Value) -> ToolResult {
             facts::do_add(state, &legacy_args)
         }
         "correct" => {
-            let fact_id = tool_args.fact_id.ok_or("Missing 'fact_id' for correct action")?;
-            let new_content = tool_args.new_content.ok_or("Missing 'new_content' for correct action")?;
+            let fact_id = tool_args
+                .fact_id
+                .ok_or("Missing 'fact_id' for correct action")?;
+            let new_content = tool_args
+                .new_content
+                .ok_or("Missing 'new_content' for correct action")?;
             let legacy_args = serde_json::json!({
                 "fact_id": fact_id,
                 "new_content": new_content,
@@ -140,8 +150,12 @@ fn dispatch_write(state: &mut ServerState, args: &Value) -> ToolResult {
             facts::do_correct(state, &legacy_args)
         }
         "extend" => {
-            let fact_id = tool_args.fact_id.ok_or("Missing 'fact_id' for extend action")?;
-            let extension = tool_args.extension.ok_or("Missing 'extension' for extend action")?;
+            let fact_id = tool_args
+                .fact_id
+                .ok_or("Missing 'fact_id' for extend action")?;
+            let extension = tool_args
+                .extension
+                .ok_or("Missing 'extension' for extend action")?;
             let legacy_args = serde_json::json!({
                 "fact_id": fact_id,
                 "extension": extension
@@ -149,7 +163,9 @@ fn dispatch_write(state: &mut ServerState, args: &Value) -> ToolResult {
             facts::do_extend(state, &legacy_args)
         }
         "deprecate" => {
-            let fact_id = tool_args.fact_id.ok_or("Missing 'fact_id' for deprecate action")?;
+            let fact_id = tool_args
+                .fact_id
+                .ok_or("Missing 'fact_id' for deprecate action")?;
             let legacy_args = serde_json::json!({
                 "fact_id": fact_id,
                 "reason": tool_args.reason
@@ -217,22 +233,24 @@ fn dispatch_context(state: &mut ServerState, args: &Value) -> ToolResult {
             kbs::do_list_kbs(state, &legacy_args)
         }
         "switch_kb" => {
-            let kb_name = tool_args.kb_name.ok_or("Missing 'kb_name' for switch_kb action")?;
+            let kb_name = tool_args
+                .kb_name
+                .ok_or("Missing 'kb_name' for switch_kb action")?;
             let legacy_args = serde_json::json!({
                 "kb_name": kb_name
             });
             kbs::do_switch_kb(state, &legacy_args)
         }
         "switch_context" => {
-            let context = tool_args.context.ok_or("Missing 'context' for switch_context action")?;
+            let context = tool_args
+                .context
+                .ok_or("Missing 'context' for switch_context action")?;
             let legacy_args = serde_json::json!({
                 "context": context
             });
             kbs::do_switch_context(state, &legacy_args)
         }
-        "show" => {
-            kbs::do_show_context(state, &serde_json::json!({}))
-        }
+        "show" => kbs::do_show_context(state, &serde_json::json!({})),
         _ => Err(format!(
             "Unknown action '{}' for meh_context. Use: list_kbs, switch_kb, switch_context, show",
             tool_args.action

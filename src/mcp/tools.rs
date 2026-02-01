@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 pub struct MehFactsTool {
     /// Action: "search", "get", "browse", "federated_search"
     pub action: String,
-    
+
     // Search params
     #[serde(default)]
     pub query: Option<String>,
@@ -28,13 +28,13 @@ pub struct MehFactsTool {
     pub path_filter: Option<String>,
     #[serde(default = "default_limit")]
     pub limit: i64,
-    
+
     // Get params
     #[serde(default)]
     pub id_or_path: Option<String>,
     #[serde(default)]
     pub include_history: bool,
-    
+
     // Browse params
     #[serde(default)]
     pub path: Option<String>,
@@ -44,7 +44,7 @@ pub struct MehFactsTool {
     pub depth: Option<i32>,
     #[serde(default)]
     pub cursor: Option<String>,
-    
+
     // Federated search params
     #[serde(default)]
     pub kbs: Vec<String>,
@@ -57,7 +57,7 @@ pub struct MehFactsTool {
 pub struct MehWriteTool {
     /// Action: "add", "correct", "extend", "deprecate", "bulk_vote"
     pub action: String,
-    
+
     // Add params
     #[serde(default)]
     pub path: Option<String>,
@@ -65,7 +65,7 @@ pub struct MehWriteTool {
     pub content: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
-    
+
     // Correct/Extend/Deprecate params
     #[serde(default)]
     pub fact_id: Option<String>,
@@ -75,7 +75,7 @@ pub struct MehWriteTool {
     pub extension: Option<String>,
     #[serde(default)]
     pub reason: Option<String>,
-    
+
     // Bulk vote params
     #[serde(default)]
     pub votes: Vec<VoteInput>,
@@ -86,17 +86,17 @@ pub struct MehWriteTool {
 pub struct MehNotifyTool {
     /// Action: "get", "ack", "subscribe"
     pub action: String,
-    
+
     // Get params
     #[serde(default)]
     pub priority_min: Option<String>,
     #[serde(default = "default_notif_limit")]
     pub limit: i64,
-    
+
     // Ack params
     #[serde(default)]
     pub notification_ids: Vec<String>,
-    
+
     // Subscribe params
     #[serde(default)]
     pub categories: Vec<String>,
@@ -111,15 +111,15 @@ pub struct MehNotifyTool {
 pub struct MehContextTool {
     /// Action: "list_kbs", "switch_kb", "switch_context", "show"
     pub action: String,
-    
+
     // List KBs params
     #[serde(default)]
     pub detailed: bool,
-    
+
     // Switch KB params
     #[serde(default)]
     pub kb_name: Option<String>,
-    
+
     // Switch context params
     #[serde(default)]
     pub context: Option<String>,

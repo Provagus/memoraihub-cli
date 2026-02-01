@@ -133,10 +133,18 @@ fn create_client(args: &KbsArgs, config: &Config) -> Result<RemoteClient> {
                 server_name
             )
         })?;
-        (server.url.clone(), server.api_key.clone(), server.timeout_secs)
+        (
+            server.url.clone(),
+            server.api_key.clone(),
+            server.timeout_secs,
+        )
     } else if let Some(server) = config.servers.first() {
         // Use first server from config
-        (server.url.clone(), server.api_key.clone(), server.timeout_secs)
+        (
+            server.url.clone(),
+            server.api_key.clone(),
+            server.timeout_secs,
+        )
     } else {
         return Err(anyhow::anyhow!(
             "No server configured.\n\
@@ -187,9 +195,11 @@ async fn list(args: &KbsArgs, config: &Config) -> Result<()> {
         };
 
         // Check if any KB in config uses this slug
-        let is_configured = config.kbs.kb.iter().any(|k| {
-            k.slug.as_ref().map(|s| s == &kb.slug).unwrap_or(false)
-        });
+        let is_configured = config
+            .kbs
+            .kb
+            .iter()
+            .any(|k| k.slug.as_ref().map(|s| s == &kb.slug).unwrap_or(false));
 
         let configured_badge = if is_configured {
             " ★".yellow().to_string()
@@ -322,7 +332,7 @@ fn use_kb(config: &Config, slug: String) -> Result<()> {
     let config_path = Config::find_local_config()
         .or_else(Config::global_config_path)
         .ok_or_else(|| anyhow::anyhow!("Cannot determine config path"))?;
-    
+
     config.save_to(&config_path)?;
     println!("  Saved to: {}", config_path.display());
 
@@ -331,8 +341,8 @@ fn use_kb(config: &Config, slug: String) -> Result<()> {
 
 /// Interactive wizard to add a new KB to local config
 async fn add_kb_interactive() -> Result<()> {
-    use std::io::{self, Write};
     use crate::config::{KbConfig, ServerEntry, WritePolicy};
+    use std::io::{self, Write};
 
     println!("{}", "📚 Add Knowledge Base to Config".bold());
     println!("{}", "═".repeat(40));
@@ -382,10 +392,13 @@ async fn add_kb_interactive() -> Result<()> {
     println!();
 
     let mut config = Config::load()?;
-    
+
     // Check if KB with this name already exists
     if config.kbs.kb.iter().any(|k| k.name == name) {
-        anyhow::bail!("KB '{}' already exists in config. Remove it first or use a different name.", name);
+        anyhow::bail!(
+            "KB '{}' already exists in config. Remove it first or use a different name.",
+            name
+        );
     }
 
     let (path, server_name, slug) = if kb_type == "sqlite" {
@@ -397,7 +410,7 @@ async fn add_kb_interactive() -> Result<()> {
     } else {
         // Remote KB - need server
         println!("{}", "Step 3: Server".cyan().bold());
-        
+
         // Show existing servers
         if !config.servers.is_empty() {
             println!("Existing servers:");
@@ -418,7 +431,7 @@ async fn add_kb_interactive() -> Result<()> {
             // Add new server
             println!();
             println!("{}", "New Server".cyan().bold());
-            
+
             let srv_name = read_line("Server name: ")?;
             if srv_name.is_empty() {
                 anyhow::bail!("Server name cannot be empty");
@@ -436,7 +449,11 @@ async fn add_kb_interactive() -> Result<()> {
             let server_entry = ServerEntry {
                 name: srv_name.clone(),
                 url: srv_url,
-                api_key: if srv_api_key.is_empty() { None } else { Some(srv_api_key) },
+                api_key: if srv_api_key.is_empty() {
+                    None
+                } else {
+                    Some(srv_api_key)
+                },
                 timeout_secs: 30,
             };
 
@@ -444,8 +461,13 @@ async fn add_kb_interactive() -> Result<()> {
             srv_name
         } else {
             // Use existing server
-            let idx: usize = server_choice.parse::<usize>().unwrap_or(1).saturating_sub(1);
-            config.servers.get(idx)
+            let idx: usize = server_choice
+                .parse::<usize>()
+                .unwrap_or(1)
+                .saturating_sub(1);
+            config
+                .servers
+                .get(idx)
                 .map(|s| s.name.clone())
                 .ok_or_else(|| anyhow::anyhow!("Invalid server selection"))?
         };
@@ -475,7 +497,8 @@ async fn add_kb_interactive() -> Result<()> {
     // Set as primary?
     println!("{}", "Set as Primary?".cyan().bold());
     let set_primary = read_line_default("Set as primary KB? (y/n)", "n")?;
-    let set_as_primary = set_primary.eq_ignore_ascii_case("y") || set_primary.eq_ignore_ascii_case("yes");
+    let set_as_primary =
+        set_primary.eq_ignore_ascii_case("y") || set_primary.eq_ignore_ascii_case("yes");
     println!();
 
     // Build KB config
@@ -490,7 +513,7 @@ async fn add_kb_interactive() -> Result<()> {
     };
 
     config.kbs.kb.push(kb_config);
-    
+
     if set_as_primary {
         config.kbs.primary = name.clone();
     }
@@ -510,7 +533,11 @@ async fn add_kb_interactive() -> Result<()> {
 
     // Summary
     println!("{}", "═".repeat(40));
-    println!("{} Added KB '{}' to config", "✓".green(), name.cyan().bold());
+    println!(
+        "{} Added KB '{}' to config",
+        "✓".green(),
+        name.cyan().bold()
+    );
     println!("  Type:   {}", kb_type);
     println!("  Write:  {:?}", write);
     if let Some(ref srv) = server_name_for_print {
@@ -523,7 +550,9 @@ async fn add_kb_interactive() -> Result<()> {
 
     if kb_type == "remote" {
         // Check if server has API key
-        let server = server_name_for_print.as_ref().and_then(|n| config.get_server(n));
+        let server = server_name_for_print
+            .as_ref()
+            .and_then(|n| config.get_server(n));
         if server.map(|s| s.api_key.is_none()).unwrap_or(true) {
             println!("\n{}", "⚠️  Next step:".yellow().bold());
             println!("  Add your API key to the server in config.toml");

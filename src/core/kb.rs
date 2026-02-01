@@ -359,9 +359,10 @@ impl KnowledgeBase {
     ) -> Result<Self> {
         // If explicit server URL provided, find matching server
         if let Some(url) = server_url {
-            let server = config.servers.iter().find(|s| {
-                s.url.trim_end_matches('/') == url.trim_end_matches('/')
-            });
+            let server = config
+                .servers
+                .iter()
+                .find(|s| s.url.trim_end_matches('/') == url.trim_end_matches('/'));
 
             let slug = kb_slug.ok_or_else(|| {
                 anyhow::anyhow!(
@@ -381,31 +382,28 @@ impl KnowledgeBase {
             } else {
                 // Unknown server - no auth
                 Ok(KnowledgeBase::Remote(RemoteKb::new(
-                    url,
-                    slug,
-                    None,
-                    None,
-                    30,
+                    url, slug, None, None, 30,
                 )?))
             };
         }
 
         // Use named KB from config (from --kb flag or primary)
         let kb_name = kb_slug.unwrap_or(&config.kbs.primary);
-        
+
         if let Some(kb_config) = config.get_kb(kb_name) {
             match kb_config.kb_type.as_str() {
                 "remote" => {
-                    let server = config.get_server_for_kb(kb_name)
-                        .ok_or_else(|| anyhow::anyhow!(
+                    let server = config.get_server_for_kb(kb_name).ok_or_else(|| {
+                        anyhow::anyhow!(
                             "No server configured for remote KB '{}'. \
-                             Check your config's [[servers]] section.", kb_name
-                        ))?;
-                    let slug = kb_config.slug.as_deref()
-                        .ok_or_else(|| anyhow::anyhow!(
-                            "No slug configured for remote KB '{}'", kb_name
-                        ))?;
-                    
+                             Check your config's [[servers]] section.",
+                            kb_name
+                        )
+                    })?;
+                    let slug = kb_config.slug.as_deref().ok_or_else(|| {
+                        anyhow::anyhow!("No slug configured for remote KB '{}'", kb_name)
+                    })?;
+
                     Ok(KnowledgeBase::Remote(RemoteKb::new(
                         &server.url,
                         slug,

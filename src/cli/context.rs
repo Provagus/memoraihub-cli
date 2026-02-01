@@ -53,7 +53,7 @@ fn show_context() -> Result<()> {
 
     if let Some(kb) = primary_kb {
         println!("   Primary: {} ({})", kb.name, kb.kb_type);
-        
+
         match kb.kb_type.as_str() {
             "sqlite" => {
                 if let Some(path) = &kb.path {
@@ -77,7 +77,16 @@ fn show_context() -> Result<()> {
         println!("   Write:   {:?}", kb.write);
     } else if !config.kbs.kb.is_empty() {
         println!("   ⚠️  Primary '{}' not found in config", primary_name);
-        println!("   Available KBs: {}", config.kbs.kb.iter().map(|k| k.name.as_str()).collect::<Vec<_>>().join(", "));
+        println!(
+            "   Available KBs: {}",
+            config
+                .kbs
+                .kb
+                .iter()
+                .map(|k| k.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
     } else {
         println!("   No KBs configured");
     }
@@ -99,7 +108,11 @@ fn set_context(kb_name: &str) -> Result<()> {
         if available.is_empty() {
             bail!("No KBs configured. Use 'meh kbs add' to add one.");
         } else {
-            bail!("KB '{}' not found. Available: {}", kb_name, available.join(", "));
+            bail!(
+                "KB '{}' not found. Available: {}",
+                kb_name,
+                available.join(", ")
+            );
         }
     }
 
@@ -115,12 +128,15 @@ fn set_context(kb_name: &str) -> Result<()> {
 
 fn clear_context() -> Result<()> {
     let mut config = Config::load()?;
-    
+
     // Set to first KB or "default"
-    let new_primary = config.kbs.kb.first()
+    let new_primary = config
+        .kbs
+        .kb
+        .first()
         .map(|k| k.name.clone())
         .unwrap_or_else(|| "default".to_string());
-    
+
     config.kbs.primary = new_primary.clone();
     save_config(&config)?;
 

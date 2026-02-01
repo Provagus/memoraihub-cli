@@ -44,12 +44,20 @@ pub fn do_list_kbs(state: &ServerState, args: &Value) -> ToolResult {
                 marker,
                 kb.name,
                 kb.kb_type,
-                if kb.kb_type == "remote" { "Server" } else { "Path" },
+                if kb.kb_type == "remote" {
+                    "Server"
+                } else {
+                    "Path"
+                },
                 server_info,
                 kb.write
             ));
         } else {
-            let type_emoji = if kb.kb_type == "remote" { "🌐" } else { "💾" };
+            let type_emoji = if kb.kb_type == "remote" {
+                "🌐"
+            } else {
+                "💾"
+            };
             result.push_str(&format!(
                 "{}{} {} ({})\n",
                 marker, type_emoji, kb.name, kb.kb_type
@@ -72,7 +80,11 @@ pub fn do_switch_kb(state: &mut ServerState, args: &Value) -> ToolResult {
     Ok(format!(
         "✓ Switched to '{}'\n  Type: {}\n  Write: {:?}",
         state.kb_name,
-        if state.is_remote_kb { "remote" } else { "sqlite" },
+        if state.is_remote_kb {
+            "remote"
+        } else {
+            "sqlite"
+        },
         state.write_policy
     ))
 }

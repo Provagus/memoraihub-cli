@@ -35,10 +35,12 @@ impl RemoteClient {
     pub fn from_url_with_config(url: &str, config: &Config) -> Result<Self> {
         // Try to find matching server in config
         let normalized_url = url.trim_end_matches('/');
-        
-        if let Some(server) = config.servers.iter().find(|s| {
-            s.url.trim_end_matches('/') == normalized_url
-        }) {
+
+        if let Some(server) = config
+            .servers
+            .iter()
+            .find(|s| s.url.trim_end_matches('/') == normalized_url)
+        {
             Self::from_server_entry(server)
         } else {
             // No matching server found, create without auth

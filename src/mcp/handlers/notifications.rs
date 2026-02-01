@@ -13,7 +13,8 @@ pub fn do_get_notifications(state: &ServerState, args: &Value) -> ToolResult {
     let tool_args: MehGetNotificationsTool =
         serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
-    let notif_storage = state.open_notification_storage()
+    let notif_storage = state
+        .open_notification_storage()
         .map_err(|e| format!("Notification storage error: {}", e))?;
 
     // Get notifications for this session
@@ -95,7 +96,8 @@ pub fn do_ack_notifications(state: &ServerState, args: &Value) -> ToolResult {
     let tool_args: MehAckNotificationsTool =
         serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
-    let notif_storage = state.open_notification_storage()
+    let notif_storage = state
+        .open_notification_storage()
         .map_err(|e| format!("Notification storage error: {}", e))?;
 
     // Check for "*" meaning all
@@ -129,7 +131,8 @@ pub fn do_ack_notifications(state: &ServerState, args: &Value) -> ToolResult {
 pub fn do_subscribe(state: &ServerState, args: &Value) -> ToolResult {
     let show = args["show"].as_bool().unwrap_or(false);
 
-    let notif_storage = state.open_notification_storage()
+    let notif_storage = state
+        .open_notification_storage()
         .map_err(|e| format!("Notification storage error: {}", e))?;
 
     if show {
