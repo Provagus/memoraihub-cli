@@ -128,3 +128,21 @@ pub struct MehAckNotificationsTool {
     /// Notification IDs to acknowledge (or ["*"] for all)
     pub notification_ids: Vec<String>,
 }
+
+/// Bulk voting input for multiple facts
+#[derive(Debug, Deserialize, Serialize)]
+pub struct VoteInput {
+    /// Target fact ID (meh-xxx)
+    pub fact_id: String,
+    /// Vote value: -1, 0, or +1 (string allowed)
+    pub vote: String,
+    /// Optional reason/comment
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehBulkVoteTool {
+    /// List of votes to record
+    pub votes: Vec<VoteInput>,
+}

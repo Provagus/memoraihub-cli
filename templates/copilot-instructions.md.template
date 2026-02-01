@@ -25,6 +25,7 @@ mcp_meh_meh_get_fact(id_or_path="@readme")  # read onboarding (if exists)
 ```
 mcp_meh_meh_search(query="topic")          # BEFORE answering - search if knowledge exists
 mcp_meh_meh_add(path="@path", content="content")  # document discoveries
+mcp_meh_meh_bulk_vote({"votes": [{"fact_id":"meh-01XXX","vote":"+1","reason":"Agree"}]})  # use when many proposals found
 ```
 
 #### 3. END - after finishing
@@ -46,6 +47,7 @@ mcp_meh_meh_ack_notifications(notification_ids=["*"]) # acknowledge read notific
 | `mcp_meh_meh_get_notifications` | Check KB changes |
 | `mcp_meh_meh_ack_notifications` | Acknowledge read |
 | `mcp_meh_meh_subscribe` | Filter notifications |
+| `mcp_meh_meh_bulk_vote` | Bulk vote multiple facts in one call |
 
 ### Path Conventions
 

@@ -157,6 +157,7 @@ meh pending reject meh-xxx    # Reject
 | `meh_get_notifications` | Get notifications |
 | `meh_ack_notifications` | Acknowledge notifications |
 | `meh_subscribe` | Subscribe to categories/paths |
+| `meh_bulk_vote` | Record multiple votes in a single call (creates extensions per vote) |
 
 ---
 

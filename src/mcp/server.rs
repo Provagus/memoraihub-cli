@@ -177,7 +177,7 @@ impl MehMcpServer {
                 "name": "meh",
                 "version": env!("CARGO_PKG_VERSION")
             },
-            "instructions": "meh is a knowledge base for AI agents. Use meh_search to find facts, meh_get_fact to read details, meh_browse to explore the path structure."
+            "instructions": "meh is a knowledge base for AI agents. Use meh_search to find facts, meh_get_fact to read details, meh_browse to explore the path structure. Use meh_get_notifications and meh_ack_notifications to view and acknowledge session notifications."
         }))
     }
 
@@ -186,7 +186,7 @@ impl MehMcpServer {
             "tools": [
                 {
                     "name": "meh_search",
-                    "description": "Search the knowledge base for facts matching a query. Returns summaries of matching facts. Use BEFORE answering questions - the answer might already exist! Example: meh_search({\"query\": \"authentication flow\"}) or meh_search({\"query\": \"bug\", \"path_filter\": \"@project/bugs\"}). If you find proposals or TODOs from other AIs, consider voting with meh_extend.",
+                    "description": "Search the knowledge base for facts matching a query. Returns summaries of matching facts. Use BEFORE answering questions - the answer might already exist! Example: meh_search({\"query\": \"authentication flow\"}) or meh_search({\"query\": \"bug\", \"path_filter\": \"@project/bugs\"}). Results are limited by `limit` and may be truncated; narrow your query or increase `limit` if needed. If you find proposals or TODOs from other AIs, consider voting with meh_extend.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -195,6 +195,28 @@ impl MehMcpServer {
                             "limit": { "type": "integer", "description": "Max results (default: 20)", "default": 20 }
                         },
                         "required": ["query"]
+                    }
+                },
+                {
+                    "name": "meh_bulk_vote",
+                    "description": "Record multiple votes in a single call. Each vote becomes an extension fact on the target fact (format: '## 🗳️ Vote\n+1 — reason'). Useful to reduce tool-call overhead when providing feedback on many proposals.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "votes": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "fact_id": { "type": "string" },
+                                        "vote": { "type": "string" },
+                                        "reason": { "type": "string" }
+                                    },
+                                    "required": ["fact_id", "vote"]
+                                }
+                            }
+                        },
+                        "required": ["votes"]
                     }
                 },
                 {
@@ -329,6 +351,7 @@ impl MehMcpServer {
             "meh_get_notifications" => self.do_get_notifications(arguments),
             "meh_ack_notifications" => self.do_ack_notifications(arguments),
             "meh_subscribe" => self.do_subscribe(arguments),
+            "meh_bulk_vote" => self.do_bulk_vote(arguments),
             _ => Err(format!("Unknown tool: {}", name)),
         };
 
@@ -388,6 +411,14 @@ impl MehMcpServer {
             ));
         }
 
+        // If the number of results equals the requested limit, warn that results may be truncated
+        if facts.len() >= tool_args.limit as usize {
+            result.push_str(&format!(
+                "\n⚠️ Note: results limited to {} items; there may be more matching facts. Narrow your query or increase `limit`.\n",
+                tool_args.limit
+            ));
+        }
+
         // Add voting hint at the end if applicable
         if !voting_hint.is_empty() {
             result.push_str(&voting_hint);
@@ -398,7 +429,7 @@ impl MehMcpServer {
 
     /// Check if search results contain proposals/todos that AI should consider voting on
     fn get_voting_hint(&self, facts: &[Fact]) -> String {
-        let proposal_paths = ["@meh/todo/", "@meh/board/", "/todo/", "/proposal/", "/rfc/"];
+        let proposal_paths = ["@meh/todo/", "@meh/board/", "@meh/rfc/", "@meh/proposal/"];
 
         let proposal_count = facts
             .iter()
@@ -442,7 +473,7 @@ impl MehMcpServer {
         if let Ok(notif_storage) = self.open_notification_storage() {
             let already_shown = notif_storage
                 .is_onboarding_shown(&self.session_id)
-                .unwrap_or(true);
+                .unwrap_or(false);
 
             if already_shown {
                 return String::new();
@@ -1045,6 +1076,88 @@ impl MehMcpServer {
         Ok(format!(
             "✓ Subscription updated for session {}:\n   Categories: {}\n   Paths: {}\n   Min priority: {}",
             self.session_id, cats_str, paths_str, priority_str
+        ))
+    }
+
+    fn do_bulk_vote(&mut self, args: &Value) -> Result<String, String> {
+        // Check write policy
+        if self.write_policy == crate::config::WritePolicy::Deny {
+            return Err(format!(
+                "Write denied: KB '{}' has write policy 'deny'",
+                self.kb_name
+            ));
+        }
+
+        let tool_args: MehBulkVoteTool =
+            serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
+
+        // If remote KB with "ask" policy, queue as a single pending item summarizing votes
+        if self.is_remote_kb && self.write_policy == crate::config::WritePolicy::Ask {
+            let queue = self.open_pending_queue()?;
+            let summary = format!("Bulk vote - {} votes", tool_args.votes.len());
+            let pending = crate::core::PendingWrite::new_add(
+                &self.kb_name,
+                self.remote_url.as_deref().unwrap_or(""),
+                "@meh/pending/bulk-vote",
+                &summary,
+                vec!["bulk-vote".to_string()],
+            );
+            let id = pending.id;
+            queue
+                .enqueue(&pending)
+                .map_err(|e| format!("Queue error: {}", e))?;
+
+            return Ok(format!(
+                "⏳ Queued bulk vote for remote KB '{}' (pending approval): queue-{}\n  Votes: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
+                self.kb_name, id, tool_args.votes.len(), id
+            ));
+        }
+
+        // For each vote, create an extension fact referencing the original
+        let mut created: Vec<String> = Vec::new();
+
+        for v in &tool_args.votes {
+            // Parse original fact ID
+            let ulid_str = v
+                .fact_id
+                .strip_prefix("meh-")
+                .ok_or("Invalid ID format - expected meh-XXX")?;
+            let original_ulid = Ulid::from_string(ulid_str)
+                .map_err(|e| format!("Invalid ULID: {}", e))?;
+
+            let original = self
+                .storage
+                .get_by_id(&original_ulid)
+                .map_err(|e| format!("Error: {}", e))?
+                .ok_or_else(|| format!("Original fact not found: {}", v.fact_id))?;
+
+            // Compose extension content
+            let reason = v.reason.as_deref().unwrap_or("");
+            let extension_content = format!("## 🗳️ Vote\n{} — {}\n", v.vote, reason);
+
+            let title = format!("Vote: {}", original.title);
+            let mut extension = Fact::new(&original.path, &title, &extension_content);
+            extension.extends = vec![original_ulid];
+            extension.fact_type = crate::core::fact::FactType::Extension;
+
+            // If write policy is ask (local), set pending
+            let is_pending = self.write_policy == crate::config::WritePolicy::Ask;
+            if is_pending {
+                extension.status = crate::core::fact::Status::PendingReview;
+            }
+
+            let new_id = extension.id;
+            self.storage
+                .insert(&extension)
+                .map_err(|e| format!("Insert error: {}", e))?;
+
+            created.push(format!("meh-{}", new_id));
+        }
+
+        Ok(format!(
+            "✓ Recorded {} vote(s): {}",
+            created.len(),
+            created.join(", ")
         ))
     }
 
