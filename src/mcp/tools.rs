@@ -146,3 +146,35 @@ pub struct MehBulkVoteTool {
     /// List of votes to record
     pub votes: Vec<VoteInput>,
 }
+
+/// List available knowledge bases from config
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehListKbsTool {
+    /// Show detailed info (type, server, write policy)
+    #[serde(default)]
+    pub detailed: bool,
+}
+
+/// Switch to a different knowledge base
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehSwitchKbTool {
+    /// Name of KB to switch to (from config)
+    pub kb_name: String,
+}
+
+/// Federated search across multiple knowledge bases
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehFederatedSearchTool {
+    /// Search query
+    pub query: String,
+    /// Optional list of KB names to search (default: all from search_order)
+    #[serde(default)]
+    pub kbs: Vec<String>,
+    /// Maximum results per KB (default: 10)
+    #[serde(default = "default_federated_limit")]
+    pub limit_per_kb: i64,
+}
+
+fn default_federated_limit() -> i64 {
+    10
+}
