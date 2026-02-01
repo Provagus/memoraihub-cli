@@ -360,11 +360,11 @@ fn get_default_onboarding_hint() -> String {
     format!(
         r#"📖 **Welcome to meh knowledge base!**
 
-**Quick start:**
-- `mcp_meh_meh_search(query="...")` - search knowledge
-- `mcp_meh_meh_browse(path="@")` - see structure
-- `mcp_meh_meh_add(path="@path", content="...")` - add knowledge
-- `mcp_meh_meh_get_fact(id_or_path="@readme")` - full instructions
+**Quick start (4 merged tools):**
+- `mcp_meh_meh_facts({{"action": "search", "query": "..."}})` - search knowledge
+- `mcp_meh_meh_facts({{"action": "browse", "path": "@"}})` - see structure
+- `mcp_meh_meh_write({{"action": "add", "path": "@path", "content": "..."}})` - add knowledge
+- `mcp_meh_meh_facts({{"action": "get", "id_or_path": "@readme"}})` - full instructions
 
 **Tip:** Add `@readme` fact with instructions, or `@readme/{{kb}}` for this KB specifically.
 

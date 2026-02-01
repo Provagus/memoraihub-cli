@@ -8,20 +8,20 @@
 
 ### 1. START session
 ```
-mcp_meh_meh_get_notifications()  # check what changed
-mcp_meh_meh_browse(path="@", mode="tree")  # see structure
-mcp_meh_meh_get_fact(id_or_path="@readme")  # you're reading this now
+mcp_meh_meh_notify({"action": "get"})  # check what changed
+mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})  # see structure
+mcp_meh_meh_facts({"action": "get", "id_or_path": "@readme"})  # you're reading this now
 ```
 
 ### 2. WORK
 ```
-mcp_meh_meh_search(query="topic")      # BEFORE answering - search if knowledge exists
-mcp_meh_meh_add(path="@path", content="...")  # document discoveries
+mcp_meh_meh_facts({"action": "search", "query": "topic"})      # BEFORE answering
+mcp_meh_meh_write({"action": "add", "path": "@path", "content": "..."})  # document discoveries
 ```
 
 ### 3. END
 ```
-mcp_meh_meh_ack_notifications(notification_ids=["*"])  # acknowledge read notifications
+mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge notifications
 ```
 
 ## Path Structure

@@ -1,8 +1,133 @@
 //! MCP Tool argument structs for meh knowledge base
 //!
 //! Simple structs for deserializing tool arguments.
+//!
+//! # Merged Tools (v2)
+//! To reduce tool count and avoid VS Code activation issues:
+//! - `meh_facts` → search, get, browse, federated_search
+//! - `meh_write` → add, correct, extend, deprecate, bulk_vote
+//! - `meh_notify` → get_notifications, ack_notifications, subscribe
+//! - `meh_context` → list_kbs, switch_kb, switch_context, show_context
 
 use serde::{Deserialize, Serialize};
+
+// ============================================================================
+// Merged Tools (v2) - 4 tools instead of 17
+// ============================================================================
+
+/// Unified facts/read tool - combines search, get, browse, federated_search
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehFactsTool {
+    /// Action: "search", "get", "browse", "federated_search"
+    pub action: String,
+    
+    // Search params
+    #[serde(default)]
+    pub query: Option<String>,
+    #[serde(default)]
+    pub path_filter: Option<String>,
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    
+    // Get params
+    #[serde(default)]
+    pub id_or_path: Option<String>,
+    #[serde(default)]
+    pub include_history: bool,
+    
+    // Browse params
+    #[serde(default)]
+    pub path: Option<String>,
+    #[serde(default)]
+    pub mode: Option<String>,
+    #[serde(default)]
+    pub depth: Option<i32>,
+    #[serde(default)]
+    pub cursor: Option<String>,
+    
+    // Federated search params
+    #[serde(default)]
+    pub kbs: Vec<String>,
+    #[serde(default)]
+    pub limit_per_kb: Option<i64>,
+}
+
+/// Unified write tool - combines add, correct, extend, deprecate, bulk_vote
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehWriteTool {
+    /// Action: "add", "correct", "extend", "deprecate", "bulk_vote"
+    pub action: String,
+    
+    // Add params
+    #[serde(default)]
+    pub path: Option<String>,
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    
+    // Correct/Extend/Deprecate params
+    #[serde(default)]
+    pub fact_id: Option<String>,
+    #[serde(default)]
+    pub new_content: Option<String>,
+    #[serde(default)]
+    pub extension: Option<String>,
+    #[serde(default)]
+    pub reason: Option<String>,
+    
+    // Bulk vote params
+    #[serde(default)]
+    pub votes: Vec<VoteInput>,
+}
+
+/// Unified notification tool - combines get, ack, subscribe
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehNotifyTool {
+    /// Action: "get", "ack", "subscribe"
+    pub action: String,
+    
+    // Get params
+    #[serde(default)]
+    pub priority_min: Option<String>,
+    #[serde(default = "default_notif_limit")]
+    pub limit: i64,
+    
+    // Ack params
+    #[serde(default)]
+    pub notification_ids: Vec<String>,
+    
+    // Subscribe params
+    #[serde(default)]
+    pub categories: Vec<String>,
+    #[serde(default)]
+    pub path_prefixes: Vec<String>,
+    #[serde(default)]
+    pub show: bool,
+}
+
+/// Unified context tool - combines list_kbs, switch_kb, switch_context, show_context
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehContextTool {
+    /// Action: "list_kbs", "switch_kb", "switch_context", "show"
+    pub action: String,
+    
+    // List KBs params
+    #[serde(default)]
+    pub detailed: bool,
+    
+    // Switch KB params
+    #[serde(default)]
+    pub kb_name: Option<String>,
+    
+    // Switch context params
+    #[serde(default)]
+    pub context: Option<String>,
+}
+
+// ============================================================================
+// Legacy Tools (kept for internal use by handlers)
+// ============================================================================
 
 /// Search the knowledge base for facts matching a query
 #[derive(Debug, Deserialize, Serialize)]

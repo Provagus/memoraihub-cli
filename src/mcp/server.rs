@@ -199,43 +199,57 @@ fn run_auto_gc(storage: &Storage) {
     }
 }
 
-/// Tool definitions for MCP
+/// Tool definitions for MCP - Merged v2 (4 tools instead of 17)
 fn tool_definitions() -> Vec<Value> {
     vec![
+        // ====== MERGED TOOL 1: meh_facts ======
         json!({
-            "name": "meh_search",
-            "description": "Search the knowledge base for facts matching a query. Returns summaries of matching facts. Use BEFORE answering questions - the answer might already exist! Example: meh_search({\"query\": \"authentication flow\"}) or meh_search({\"query\": \"bug\", \"path_filter\": \"@project/bugs\"}). Results are limited by `limit` and may be truncated; narrow your query or increase `limit` if needed. If you find interesting facts, vote on them with meh_bulk_vote.",
+            "name": "meh_facts",
+            "description": "Read facts from knowledge base. Actions: 'search' (find facts by query), 'get' (get single fact by ID/path), 'browse' (explore path structure like ls/tree), 'federated_search' (search across multiple KBs). Examples: meh_facts({\"action\": \"search\", \"query\": \"authentication\"}) or meh_facts({\"action\": \"browse\", \"path\": \"@meh\", \"mode\": \"tree\"})",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "query": { "type": "string", "description": "Search query - use natural language or keywords. Multi-word queries match ANY word (OR logic)." },
-                    "path_filter": { "type": "string", "description": "Limit search to path prefix. Examples: '@project', '@meh/bugs', '@meh/todo'" },
-                    "limit": { "type": "integer", "description": "Max results (default: 20)", "default": 20 }
+                    "action": { 
+                        "type": "string", 
+                        "enum": ["search", "get", "browse", "federated_search"],
+                        "description": "Action to perform"
+                    },
+                    "query": { "type": "string", "description": "Search query (for 'search' and 'federated_search')" },
+                    "path_filter": { "type": "string", "description": "Limit search to path prefix (for 'search')" },
+                    "limit": { "type": "integer", "description": "Max results (default: 20)", "default": 20 },
+                    "id_or_path": { "type": "string", "description": "Fact ID or path (for 'get')" },
+                    "include_history": { "type": "boolean", "description": "Include history chain (for 'get')", "default": false },
+                    "path": { "type": "string", "description": "Path to browse (for 'browse')", "default": "@" },
+                    "mode": { "type": "string", "enum": ["ls", "tree"], "description": "Browse mode (for 'browse')", "default": "ls" },
+                    "depth": { "type": "integer", "description": "Tree depth (for 'browse')", "default": 3 },
+                    "cursor": { "type": "string", "description": "Pagination cursor (for 'browse')" },
+                    "kbs": { "type": "array", "items": { "type": "string" }, "description": "KBs to search (for 'federated_search')" },
+                    "limit_per_kb": { "type": "integer", "description": "Results per KB (for 'federated_search')", "default": 10 }
                 },
-                "required": ["query"]
+                "required": ["action"]
             }
         }),
+        // ====== MERGED TOOL 2: meh_write ======
         json!({
-            "name": "meh_federated_search",
-            "description": "Search across multiple knowledge bases at once. Uses search_order from config by default. Example: meh_federated_search({\"query\": \"authentication\"}) searches all KBs, or meh_federated_search({\"query\": \"auth\", \"kbs\": [\"local\", \"company\"]}) for specific KBs.",
+            "name": "meh_write",
+            "description": "Write/modify facts in knowledge base. Actions: 'add' (create new fact), 'correct' (fix wrong fact, creates superseding), 'extend' (add info to existing fact), 'deprecate' (mark as outdated), 'bulk_vote' (vote on multiple facts). SEARCH FIRST before adding! Examples: meh_write({\"action\": \"add\", \"path\": \"@bugs/issue\", \"content\": \"# Bug...\"}) or meh_write({\"action\": \"extend\", \"fact_id\": \"meh-01ABC\", \"extension\": \"## Update...\"})",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "query": { "type": "string", "description": "Search query" },
-                    "kbs": { "type": "array", "items": { "type": "string" }, "description": "List of KB names to search (default: all from search_order)" },
-                    "limit_per_kb": { "type": "integer", "description": "Max results per KB (default: 10)", "default": 10 }
-                },
-                "required": ["query"]
-            }
-        }),
-        json!({
-            "name": "meh_bulk_vote",
-            "description": "Record multiple votes in a single call. Each vote becomes an extension fact on the target fact (format: '## 🗳️ Vote\n+1 — reason'). Useful to reduce tool-call overhead when providing feedback on many proposals.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "votes": {
-                        "type": "array",
+                    "action": { 
+                        "type": "string", 
+                        "enum": ["add", "correct", "extend", "deprecate", "bulk_vote"],
+                        "description": "Action to perform"
+                    },
+                    "path": { "type": "string", "description": "Fact path (for 'add'). Start with @, use lowercase kebab-case" },
+                    "content": { "type": "string", "description": "Markdown content (for 'add'). First line = title" },
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for categorization" },
+                    "fact_id": { "type": "string", "description": "Target fact ID meh-XXX (for 'correct', 'extend', 'deprecate')" },
+                    "new_content": { "type": "string", "description": "Replacement content (for 'correct')" },
+                    "extension": { "type": "string", "description": "Additional content to append (for 'extend')" },
+                    "reason": { "type": "string", "description": "Reason for change (for 'correct', 'deprecate')" },
+                    "votes": { 
+                        "type": "array", 
                         "items": {
                             "type": "object",
                             "properties": {
@@ -244,161 +258,52 @@ fn tool_definitions() -> Vec<Value> {
                                 "reason": { "type": "string" }
                             },
                             "required": ["fact_id", "vote"]
-                        }
+                        },
+                        "description": "Votes array (for 'bulk_vote')"
                     }
                 },
-                "required": ["votes"]
+                "required": ["action"]
             }
         }),
+        // ====== MERGED TOOL 3: meh_notify ======
         json!({
-            "name": "meh_get_fact",
-            "description": "Get full content of a single fact by ID or path. Use after meh_search to read details. Example: meh_get_fact({\"id_or_path\": \"@readme\"}) or meh_get_fact({\"id_or_path\": \"meh-01ABC123\"})",
+            "name": "meh_notify",
+            "description": "Manage notifications about KB changes. Actions: 'get' (fetch pending notifications), 'ack' (acknowledge/mark as read), 'subscribe' (configure what you receive). Examples: meh_notify({\"action\": \"get\"}) or meh_notify({\"action\": \"ack\", \"notification_ids\": [\"*\"]})",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "id_or_path": { "type": "string", "description": "Fact ID (meh-XXXX format) or path (@path/to/fact)" },
-                    "include_history": { "type": "boolean", "description": "Include chain of superseded/extended facts", "default": false }
+                    "action": { 
+                        "type": "string", 
+                        "enum": ["get", "ack", "subscribe"],
+                        "description": "Action to perform"
+                    },
+                    "priority_min": { "type": "string", "enum": ["normal", "high", "critical"], "description": "Min priority filter" },
+                    "limit": { "type": "integer", "description": "Max notifications (default: 10)", "default": 10 },
+                    "notification_ids": { "type": "array", "items": { "type": "string" }, "description": "IDs to ack, or [\"*\"] for all" },
+                    "categories": { "type": "array", "items": { "type": "string" }, "description": "Categories to subscribe: facts, ci, security, docs, system" },
+                    "path_prefixes": { "type": "array", "items": { "type": "string" }, "description": "Path prefixes to watch" },
+                    "show": { "type": "boolean", "description": "Just show current subscription", "default": false }
                 },
-                "required": ["id_or_path"]
+                "required": ["action"]
             }
         }),
+        // ====== MERGED TOOL 4: meh_context ======
         json!({
-            "name": "meh_browse",
-            "description": "Browse the knowledge base path structure like 'ls' or 'tree'. Use to explore what's in the KB. Example: meh_browse({\"path\": \"@meh\"}) to see project knowledge, or meh_browse({\"path\": \"@\", \"mode\": \"tree\"}) for full structure.",
+            "name": "meh_context",
+            "description": "Manage KB context and session. Actions: 'list_kbs' (show available KBs), 'switch_kb' (change active KB), 'switch_context' (local/remote), 'show' (current context info). Examples: meh_context({\"action\": \"show\"}) or meh_context({\"action\": \"switch_kb\", \"kb_name\": \"company\"})",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string", "description": "Path prefix to list (default: @ for root)", "default": "@" },
-                    "mode": { "type": "string", "enum": ["ls", "tree"], "description": "'ls' = flat list, 'tree' = hierarchical", "default": "ls" },
-                    "depth": { "type": "integer", "description": "Tree depth (default: 3)", "default": 3 },
-                    "limit": { "type": "integer", "description": "Max entries (default: 100)", "default": 100 },
-                    "cursor": { "type": "string", "description": "For pagination - pass last path from previous response" }
-                }
-            }
-        }),
-        json!({
-            "name": "meh_add",
-            "description": "Add a new fact to the knowledge base. FIRST search to check if similar info exists - don't duplicate! Keep content concise and helpful. Use to save discoveries, decisions, bug fixes. Example: meh_add({\"path\": \"@project/bugs/auth-issue\", \"content\": \"# Auth Bug\\n\\nFixed by...\", \"tags\": [\"bug\", \"fixed\"]}). Path conventions: @project/bugs/*, @project/architecture/*, @meh/todo/*",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string", "description": "Path for the fact. Start with @, use / separator, lowercase kebab-case. Example: '@project/api/rate-limits'" },
-                    "content": { "type": "string", "description": "Fact content in Markdown. First line becomes the title." },
-                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for categorization: bug, fixed, architecture, todo, etc." }
+                    "action": { 
+                        "type": "string", 
+                        "enum": ["list_kbs", "switch_kb", "switch_context", "show"],
+                        "description": "Action to perform"
+                    },
+                    "detailed": { "type": "boolean", "description": "Show detailed KB info (for 'list_kbs')", "default": false },
+                    "kb_name": { "type": "string", "description": "KB name to switch to (for 'switch_kb')" },
+                    "context": { "type": "string", "description": "Context: 'local' or URL (for 'switch_context')" }
                 },
-                "required": ["path", "content"]
-            }
-        }),
-        json!({
-            "name": "meh_correct",
-            "description": "Correct an existing fact with updated information. Creates a NEW fact that supersedes the original (append-only, preserves history). Use when a fact is WRONG. Example: meh_correct({\"fact_id\": \"meh-01ABC\", \"new_content\": \"# Corrected info...\", \"reason\": \"Previous timeout was wrong\"})",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "fact_id": { "type": "string", "description": "ID of fact to correct (meh-XXXX format from search results)" },
-                    "new_content": { "type": "string", "description": "Complete new content (replaces old)" },
-                    "reason": { "type": "string", "description": "Why correcting? Helps future readers understand." }
-                },
-                "required": ["fact_id", "new_content"]
-            }
-        }),
-        json!({
-            "name": "meh_extend",
-            "description": "Add more information to an existing fact without replacing it. Use to ADD details, examples, or VOTE on proposals from other AIs. Example: meh_extend({\"fact_id\": \"meh-01ABC\", \"extension\": \"## Additional notes\\n\\nAlso discovered that...\"}). Voting format: '## 🗳️ Vote\\n+1 for X because...'",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "fact_id": { "type": "string", "description": "ID of fact to extend (meh-XXXX format)" },
-                    "extension": { "type": "string", "description": "Additional content to append. Use Markdown." }
-                },
-                "required": ["fact_id", "extension"]
-            }
-        }),
-        json!({
-            "name": "meh_deprecate",
-            "description": "Mark a fact as deprecated/outdated. Fact remains readable but flagged. Use when info is no longer relevant. Example: meh_deprecate({\"fact_id\": \"meh-01ABC\", \"reason\": \"API v2 replaced this endpoint\"})",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "fact_id": { "type": "string", "description": "ID of fact to deprecate (meh-XXXX format)" },
-                    "reason": { "type": "string", "description": "Why deprecated? Helps others understand." }
-                },
-                "required": ["fact_id"]
-            }
-        }),
-        json!({
-            "name": "meh_get_notifications",
-            "description": "Get pending notifications about KB changes (new facts, corrections, alerts). Each AI session has independent notification tracking. Example: meh_get_notifications({}) or meh_get_notifications({\"priority_min\": \"high\"})",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "priority_min": { "type": "string", "enum": ["normal", "high", "critical"], "description": "Filter: only this priority or higher" },
-                    "limit": { "type": "integer", "description": "Max notifications (default: 10)", "default": 10 }
-                }
-            }
-        }),
-        json!({
-            "name": "meh_ack_notifications",
-            "description": "Mark notifications as read. Use [\"*\"] to acknowledge all at once. Example: meh_ack_notifications({\"notification_ids\": [\"*\"]})",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "notification_ids": { "type": "array", "items": { "type": "string" }, "description": "IDs to ack, or [\"*\"] for all" }
-                },
-                "required": ["notification_ids"]
-            }
-        }),
-        json!({
-            "name": "meh_subscribe",
-            "description": "Configure which notifications you receive. Filter by category and/or path prefix. Example: meh_subscribe({\"categories\": [\"facts\", \"security\"], \"path_prefixes\": [\"@project\"]}) or meh_subscribe({\"show\": true}) to see current subscription.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "categories": { "type": "array", "items": { "type": "string" }, "description": "Categories: facts, ci, security, docs, system (empty = all)" },
-                    "path_prefixes": { "type": "array", "items": { "type": "string" }, "description": "Path prefixes to watch (empty = all)" },
-                    "priority_min": { "type": "string", "enum": ["normal", "high", "critical"], "description": "Minimum priority to receive" },
-                    "show": { "type": "boolean", "description": "Just show current subscription, don't change", "default": false }
-                }
-            }
-        }),
-        json!({
-            "name": "meh_list_kbs",
-            "description": "List available knowledge bases from config. Shows which KBs you can switch to. Example: meh_list_kbs({}) or meh_list_kbs({\"detailed\": true}) for full info.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "detailed": { "type": "boolean", "description": "Show type, server, write policy", "default": false }
-                }
-            }
-        }),
-        json!({
-            "name": "meh_switch_kb",
-            "description": "Switch to a different knowledge base for this session. All subsequent operations will use the new KB. Example: meh_switch_kb({\"kb_name\": \"company\"}) to switch to company KB.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "kb_name": { "type": "string", "description": "Name of KB from config to switch to" }
-                },
-                "required": ["kb_name"]
-            }
-        }),
-        json!({
-            "name": "meh_switch_context",
-            "description": "Switch session context to local or remote KB. This is PER-SESSION and doesn't affect other AI sessions or CLI. Use 'local' for local SQLite or full URL for remote. Example: meh_switch_context({\"context\": \"local\"}) or meh_switch_context({\"context\": \"http://localhost:3000/my-kb\"})",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "context": { "type": "string", "description": "Context: 'local' or 'http://server:3000/kb-slug'" }
-                },
-                "required": ["context"]
-            }
-        }),
-        json!({
-            "name": "meh_show_context",
-            "description": "Show current session context including KB name, server URL, write policy, and session ID. Use to verify which KB you're working with.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {}
+                "required": ["action"]
             }
         }),
     ]

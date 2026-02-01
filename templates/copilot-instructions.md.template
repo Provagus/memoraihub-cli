@@ -9,47 +9,38 @@ This project uses **meh** as a knowledge base for AI. You have access to MCP too
 ### ⚠️ Tool Names
 
 MCP tools have `mcp_meh_` prefix:
-- ❌ `meh_search` (old/conceptual name)
-- ✅ `mcp_meh_meh_search` (actual tool name)
+- ❌ `meh_facts` (conceptual name)
+- ✅ `mcp_meh_meh_facts` (actual tool name)
 
 ### Session Workflow
 
 #### 1. START - at the beginning of session
 ```
-mcp_meh_meh_get_notifications()      # check what changed
-mcp_meh_meh_browse(path="@", mode="tree")  # see structure
-mcp_meh_meh_get_fact(id_or_path="@readme")  # read onboarding (if exists)
+mcp_meh_meh_notify({"action": "get"})           # check what changed
+mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})  # see structure
+mcp_meh_meh_facts({"action": "get", "id_or_path": "@readme"})  # read onboarding
 ```
 
 #### 2. WORK - during task
 ```
-mcp_meh_meh_search(query="topic")          # BEFORE answering - search if knowledge exists
-mcp_meh_meh_add(path="@path", content="content")  # document discoveries
-mcp_meh_meh_bulk_vote({"votes": [{"fact_id":"meh-01XXX","vote":"+1","reason":"Agree"}]})  # use when many proposals found
+mcp_meh_meh_facts({"action": "search", "query": "topic"})  # BEFORE answering
+mcp_meh_meh_write({"action": "add", "path": "@path", "content": "..."})  # document discoveries
+mcp_meh_meh_write({"action": "bulk_vote", "votes": [{"fact_id":"meh-01XXX","vote":"+1","reason":"Agree"}]})  # vote on proposals
 ```
 
 #### 3. END - after finishing
 ```
-mcp_meh_meh_ack_notifications(notification_ids=["*"]) # acknowledge read notifications
+mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge notifications
 ```
 
-### Available Tools
+### Available Tools (4 merged tools)
 
-| Tool | When to use |
-|------|-------------|
-| `mcp_meh_meh_search` | Search knowledge BEFORE answering |
-| `mcp_meh_meh_browse` | Browse path structure |
-| `mcp_meh_meh_get_fact` | Get full fact content |
-| `mcp_meh_meh_add` | Add new knowledge |
-| `mcp_meh_meh_correct` | Correct an incorrect fact |
-| `mcp_meh_meh_extend` | Extend existing fact |
-| `mcp_meh_meh_deprecate` | Mark fact as outdated |
-| `mcp_meh_meh_get_notifications` | Check KB changes |
-| `mcp_meh_meh_ack_notifications` | Acknowledge read |
-| `mcp_meh_meh_subscribe` | Filter notifications |
-| `mcp_meh_meh_switch_context` | Switch to different KB (per-session) |
-| `mcp_meh_meh_show_context` | Show current session context |
-| `mcp_meh_meh_bulk_vote` | Bulk vote multiple facts in one call |
+| Tool | Actions | When to use |
+|------|---------|-------------|
+| `mcp_meh_meh_facts` | search, get, browse, federated_search | Read facts from knowledge base |
+| `mcp_meh_meh_write` | add, correct, extend, deprecate, bulk_vote | Write/modify facts |
+| `mcp_meh_meh_notify` | get, ack, subscribe | Manage notifications |
+| `mcp_meh_meh_context` | list_kbs, switch_kb, switch_context, show | Manage KB context and session |
 
 ### Path Conventions
 
@@ -79,9 +70,9 @@ mcp_meh_meh_ack_notifications(notification_ids=["*"]) # acknowledge read notific
 
 ```
 1. User: "How does search work?"
-2. AI: mcp_meh_meh_search(query="search implementation")
+2. AI: mcp_meh_meh_facts({"action": "search", "query": "search implementation"})
 3. AI: [reads results, answers with context]
-4. AI: mcp_meh_meh_add(path="@docs/search-explained", content="Explanation for future sessions")
+4. AI: mcp_meh_meh_write({"action": "add", "path": "@docs/search-explained", "content": "Explanation for future sessions"})
 ```
 
 ### Context Switching (per AI session)
@@ -89,9 +80,9 @@ mcp_meh_meh_ack_notifications(notification_ids=["*"]) # acknowledge read notific
 Each AI session can have its own KB context:
 
 ```
-mcp_meh_meh_switch_context(context="local")  # Use local SQLite
-mcp_meh_meh_switch_context(context="http://server:3000/kb-slug")  # Use remote
-mcp_meh_meh_show_context()  # Show current session context
+mcp_meh_meh_context({"action": "switch_context", "context": "local"})  # Use local SQLite
+mcp_meh_meh_context({"action": "switch_context", "context": "http://server:3000/kb-slug"})  # Use remote
+mcp_meh_meh_context({"action": "show"})  # Show current session context
 ```
 
 **Note:** Context switching is PER-SESSION and doesn't affect other AI chats or CLI.
