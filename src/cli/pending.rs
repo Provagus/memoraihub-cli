@@ -6,22 +6,31 @@
 
 use anyhow::Result;
 use clap::{Args, Subcommand};
+use dialoguer::{theme::ColorfulTheme, Select};
 use ulid::Ulid;
 
 use crate::config::Config;
+use crate::core::fact::Fact;
 use crate::core::pending_queue::{PendingQueue, PendingWrite, PendingWriteType};
 use crate::core::storage::Storage;
 
 #[derive(Args, Debug)]
 pub struct PendingArgs {
     #[command(subcommand)]
-    pub command: PendingCommands,
+    pub command: Option<PendingCommands>,
+
+    /// Interactive review mode
+    #[arg(short = 'i', long = "interactive", global = true)]
+    pub interactive: bool,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum PendingCommands {
     /// List all pending items (local facts + remote queue)
     List,
+
+    /// Interactive review of pending items
+    Review,
 
     /// Approve a pending item
     Approve {
@@ -67,13 +76,269 @@ pub fn execute(args: PendingArgs, config: &Config) -> Result<()> {
         .unwrap_or_else(|| std::path::PathBuf::from(".meh/pending_queue.db"));
     let queue = PendingQueue::open(&queue_path)?;
 
-    match args.command {
+    // If -i flag or no subcommand, run interactive
+    if args.interactive || args.command.is_none() {
+        return run_interactive_review(storage.as_ref(), &queue, config);
+    }
+
+    match args.command.unwrap() {
         PendingCommands::List => list_pending(storage.as_ref(), &queue),
+        PendingCommands::Review => run_interactive_review(storage.as_ref(), &queue, config),
         PendingCommands::Approve { id } => approve_one(storage.as_ref(), &queue, &id, config),
         PendingCommands::Reject { id } => reject_one(storage.as_ref(), &queue, &id),
         PendingCommands::ApproveAll { yes } => approve_all(storage.as_ref(), &queue, yes, config),
         PendingCommands::RejectAll { yes } => reject_all(storage.as_ref(), &queue, yes),
     }
+}
+
+// ============================================================================
+// Interactive Review Mode
+// ============================================================================
+
+/// Unified pending item for interactive review
+enum PendingItem {
+    Local(Fact),
+    Remote(PendingWrite),
+}
+
+impl PendingItem {
+    fn id_string(&self) -> String {
+        match self {
+            PendingItem::Local(f) => format_meh_id(&f.id),
+            PendingItem::Remote(w) => format_queue_id(&w.id),
+        }
+    }
+
+    fn path(&self) -> &str {
+        match self {
+            PendingItem::Local(f) => &f.path,
+            PendingItem::Remote(w) => &w.path,
+        }
+    }
+
+    fn title(&self) -> String {
+        match self {
+            PendingItem::Local(f) => f.title.clone(),
+            PendingItem::Remote(w) => w.title.clone().unwrap_or_else(|| "Untitled".to_string()),
+        }
+    }
+
+    fn content(&self) -> &str {
+        match self {
+            PendingItem::Local(f) => &f.content,
+            PendingItem::Remote(w) => &w.content,
+        }
+    }
+
+    fn item_type(&self) -> &str {
+        match self {
+            PendingItem::Local(_) => "local",
+            PendingItem::Remote(w) => match w.write_type {
+                PendingWriteType::Add => "add",
+                PendingWriteType::Correct => "correct",
+                PendingWriteType::Extend => "extend",
+                PendingWriteType::Deprecate => "deprecate",
+            },
+        }
+    }
+
+    fn target_kb(&self) -> Option<&str> {
+        match self {
+            PendingItem::Local(_) => None,
+            PendingItem::Remote(w) => Some(&w.target_kb),
+        }
+    }
+}
+
+struct ReviewStats {
+    approved: usize,
+    rejected: usize,
+    skipped: usize,
+}
+
+fn run_interactive_review(
+    storage: Option<&Storage>,
+    queue: &PendingQueue,
+    config: &Config,
+) -> Result<()> {
+    // Collect all pending items
+    let mut items: Vec<PendingItem> = Vec::new();
+
+    if let Some(storage) = storage {
+        let pending = storage.get_pending_review()?;
+        for fact in pending {
+            items.push(PendingItem::Local(fact));
+        }
+    }
+
+    let queued = queue.list_all()?;
+    for write in queued {
+        items.push(PendingItem::Remote(write));
+    }
+
+    if items.is_empty() {
+        println!("✨ No pending items to review.");
+        return Ok(());
+    }
+
+    println!("\n📋 Interactive Pending Review ({} items)\n", items.len());
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+    let theme = ColorfulTheme::default();
+    let mut stats = ReviewStats {
+        approved: 0,
+        rejected: 0,
+        skipped: 0,
+    };
+
+    let mut idx = 0;
+    while idx < items.len() {
+        let item = &items[idx];
+
+        // Display item header
+        println!(
+            "\x1b[1m[{}/{}]\x1b[0m {} \x1b[90m({})\x1b[0m",
+            idx + 1,
+            items.len(),
+            item.id_string(),
+            item.item_type()
+        );
+        println!("\x1b[36mPath:\x1b[0m  {}", item.path());
+        println!("\x1b[36mTitle:\x1b[0m {}", item.title());
+        if let Some(kb) = item.target_kb() {
+            println!("\x1b[36mTarget:\x1b[0m {}", kb);
+        }
+        println!();
+
+        // Show content preview (first 10 lines)
+        let content_lines: Vec<&str> = item.content().lines().take(10).collect();
+        println!("\x1b[90m┌─────────────────────────────────────────────────────────────────────────────┐\x1b[0m");
+        for line in &content_lines {
+            let truncated = if line.len() > 75 {
+                format!("{}...", &line[..72])
+            } else {
+                line.to_string()
+            };
+            println!("\x1b[90m│\x1b[0m {:<76}\x1b[90m│\x1b[0m", truncated);
+        }
+        let total_lines = item.content().lines().count();
+        if total_lines > 10 {
+            println!(
+                "\x1b[90m│\x1b[0m \x1b[33m... ({} more lines)\x1b[0m{:<53}\x1b[90m│\x1b[0m",
+                total_lines - 10,
+                ""
+            );
+        }
+        println!("\x1b[90m└─────────────────────────────────────────────────────────────────────────────┘\x1b[0m");
+        println!();
+
+        // Action selection
+        let actions = &[
+            "✅ Approve",
+            "❌ Reject",
+            "📄 View full content",
+            "⏭️  Skip (leave pending)",
+            "🚀 Approve all remaining",
+            "🚪 Quit",
+        ];
+
+        let selection = Select::with_theme(&theme)
+            .with_prompt("Action")
+            .items(actions)
+            .default(0)
+            .interact()?;
+
+        match selection {
+            0 => {
+                // Approve
+                match &items[idx] {
+                    PendingItem::Local(fact) => {
+                        if let Some(storage) = storage {
+                            if let Some(ref supersedes_id) = fact.supersedes {
+                                storage.mark_superseded(supersedes_id)?;
+                            }
+                            storage.approve_fact(&fact.id)?;
+                        }
+                    }
+                    PendingItem::Remote(write) => {
+                        push_to_remote(write, config)?;
+                        queue.remove(&write.id)?;
+                    }
+                }
+                println!("\x1b[32m✅ Approved!\x1b[0m\n");
+                stats.approved += 1;
+                idx += 1;
+            }
+            1 => {
+                // Reject
+                match &items[idx] {
+                    PendingItem::Local(fact) => {
+                        if let Some(storage) = storage {
+                            storage.reject_fact(&fact.id)?;
+                        }
+                    }
+                    PendingItem::Remote(write) => {
+                        queue.remove(&write.id)?;
+                    }
+                }
+                println!("\x1b[31m❌ Rejected!\x1b[0m\n");
+                stats.rejected += 1;
+                idx += 1;
+            }
+            2 => {
+                // View full content
+                println!("\n\x1b[1m=== Full Content ===\x1b[0m\n");
+                println!("{}", item.content());
+                println!("\n\x1b[1m=== End ===\x1b[0m\n");
+                // Don't increment idx, let user act on same item
+            }
+            3 => {
+                // Skip
+                println!("\x1b[33m⏭️  Skipped\x1b[0m\n");
+                stats.skipped += 1;
+                idx += 1;
+            }
+            4 => {
+                // Approve all remaining
+                for i in idx..items.len() {
+                    match &items[i] {
+                        PendingItem::Local(fact) => {
+                            if let Some(storage) = storage {
+                                if let Some(ref supersedes_id) = fact.supersedes {
+                                    let _ = storage.mark_superseded(supersedes_id);
+                                }
+                                let _ = storage.approve_fact(&fact.id);
+                            }
+                        }
+                        PendingItem::Remote(write) => {
+                            if push_to_remote(write, config).is_ok() {
+                                let _ = queue.remove(&write.id);
+                            }
+                        }
+                    }
+                    stats.approved += 1;
+                }
+                println!("\x1b[32m🚀 Approved {} remaining items!\x1b[0m\n", items.len() - idx);
+                break;
+            }
+            5 => {
+                // Quit
+                println!("\n\x1b[33m🚪 Exiting review\x1b[0m\n");
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    // Final summary
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("\n📊 Review complete:");
+    println!("   ✅ Approved: {}", stats.approved);
+    println!("   ❌ Rejected: {}", stats.rejected);
+    println!("   ⏭️  Skipped:  {}", stats.skipped);
+    println!();
+
+    Ok(())
 }
 
 fn list_pending(storage: Option<&Storage>, queue: &PendingQueue) -> Result<()> {

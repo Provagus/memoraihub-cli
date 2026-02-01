@@ -101,8 +101,8 @@ pub fn do_bulk_vote(state: &mut ServerState, args: &Value) -> ToolResult {
             .map_err(|e| format!("Queue error: {}", e))?;
 
         return Ok(format!(
-            "⏳ Queued bulk vote for remote KB '{}' (pending approval): queue-{}\n  Votes: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
-            state.kb_name, id, tool_args.votes.len(), id
+            "⏳ Queued bulk vote for remote KB '{}' (pending approval): queue-{}\n  Votes: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            state.kb_name, id, tool_args.votes.len()
         ));
     }
 

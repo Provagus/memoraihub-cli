@@ -149,8 +149,8 @@ pub fn do_add(state: &mut ServerState, args: &Value) -> ToolResult {
             .map_err(|e| format!("Queue error: {}", e))?;
 
         return Ok(format!(
-            "⏳ Queued for remote KB '{}' (pending approval): queue-{}\n  Path: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
-            state.kb_name, id, tool_args.path, id
+            "⏳ Queued for remote KB '{}' (pending approval): queue-{}\n  Path: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            state.kb_name, id, tool_args.path
         ));
     }
 
@@ -182,8 +182,8 @@ pub fn do_add(state: &mut ServerState, args: &Value) -> ToolResult {
 
     if is_pending {
         Ok(format!(
-            "⏳ Created fact (pending review): meh-{}\n  Path: {}\n  ℹ️ Use `meh pending approve meh-{}` to activate",
-            id, tool_args.path, id
+            "⏳ Created fact (pending review): meh-{}\n  Path: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            id, tool_args.path
         ))
     } else {
         Ok(format!(
@@ -231,8 +231,8 @@ pub fn do_correct(state: &mut ServerState, args: &Value) -> ToolResult {
             .map_err(|e| format!("Queue error: {}", e))?;
 
         return Ok(format!(
-            "⏳ Queued correction for remote KB '{}' (pending approval): queue-{}\n  Will supersede: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
-            state.kb_name, id, tool_args.fact_id, id
+            "⏳ Queued correction for remote KB '{}' (pending approval): queue-{}\n  Will supersede: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            state.kb_name, id, tool_args.fact_id
         ));
     }
 
@@ -264,8 +264,8 @@ pub fn do_correct(state: &mut ServerState, args: &Value) -> ToolResult {
 
     if is_pending {
         Ok(format!(
-            "⏳ Created correction (pending review): meh-{}\n  Will supersede: {}\n  ℹ️ Use `meh pending approve meh-{}` to activate",
-            new_id, tool_args.fact_id, new_id
+            "⏳ Created correction (pending review): meh-{}\n  Will supersede: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            new_id, tool_args.fact_id
         ))
     } else {
         Ok(format!(
@@ -313,8 +313,8 @@ pub fn do_extend(state: &mut ServerState, args: &Value) -> ToolResult {
             .map_err(|e| format!("Queue error: {}", e))?;
 
         return Ok(format!(
-            "⏳ Queued extension for remote KB '{}' (pending approval): queue-{}\n  Will extend: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
-            state.kb_name, id, tool_args.fact_id, id
+            "⏳ Queued extension for remote KB '{}' (pending approval): queue-{}\n  Will extend: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            state.kb_name, id, tool_args.fact_id
         ));
     }
 
@@ -339,8 +339,8 @@ pub fn do_extend(state: &mut ServerState, args: &Value) -> ToolResult {
 
     if is_pending {
         Ok(format!(
-            "⏳ Created extension (pending review): meh-{}\n  Will extend: {}\n  ℹ️ Use `meh pending approve meh-{}` to activate",
-            new_id, tool_args.fact_id, new_id
+            "⏳ Created extension (pending review): meh-{}\n  Will extend: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            new_id, tool_args.fact_id
         ))
     } else {
         Ok(format!(
@@ -372,8 +372,8 @@ pub fn do_deprecate(state: &mut ServerState, args: &Value) -> ToolResult {
             .map_err(|e| format!("Queue error: {}", e))?;
 
         return Ok(format!(
-            "⏳ Queued deprecation for remote KB '{}' (pending approval): queue-{}\n  Fact: {}\n  ℹ️ Use `meh pending approve queue-{}` to push to remote",
-            state.kb_name, id, tool_args.fact_id, id
+            "⏳ Queued deprecation for remote KB '{}' (pending approval): queue-{}\n  Fact: {}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
+            state.kb_name, id, tool_args.fact_id
         ));
     }
 

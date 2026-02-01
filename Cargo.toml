@@ -45,6 +45,10 @@ directories = "5.0"
 colored = "2.1"
 tabled = "0.15"
 
+# Interactive prompts
+dialoguer = "0.11"
+console = "0.15"
+
 # MCP (Model Context Protocol) - using simple JSON-RPC implementation
 # No additional dependencies needed - using serde_json and tokio
 
