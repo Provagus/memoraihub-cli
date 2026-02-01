@@ -30,8 +30,16 @@ mcp_meh_meh_write({"action": "bulk_vote", "votes": [{"fact_id":"meh-01XXX","vote
 
 #### 3. END - after finishing
 ```
+mcp_meh_meh_write({"action": "add", "path": "@meh/bugs/...", "content": "..."})  # DOCUMENT BUGS FIXED
+mcp_meh_meh_write({"action": "add", "path": "@meh/changelog/...", "content": "..."})  # DOCUMENT CHANGES
 mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge notifications
 ```
+
+**⚠️ CRITICAL: Always document your work!**
+- Fixed a bug? → `mcp_meh_meh_write()` to `@meh/bugs/...`
+- Made changes? → `mcp_meh_meh_write()` to `@meh/changelog/...`
+- Found something important? → `mcp_meh_meh_write()` to appropriate path
+- **DO NOT SKIP THIS STEP** - future sessions need this context!
 
 ### Available Tools (4 merged tools)
 
@@ -54,17 +62,29 @@ mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge 
 
 ### What to Document?
 
-✅ **YES:**
-- Found bugs (even small ones)
-- Decisions and why
-- Problem solutions
-- TODOs for future
-- Observations and feedback
+✅ **ALWAYS DOCUMENT (use mcp_meh_meh_write):**
+- **Any bug you found and fixed** → `@meh/bugs/bug-name`
+- **Any code changes or refactoring** → `@meh/changelog/change-name`
+- **Architectural decisions made** → `@meh/architecture/decision-name`
+- **Security improvements** → `@meh/server/security-*` (extend if exists)
+- **New features implemented** → `@meh/changelog/feature-name`
+- **Important discoveries** → `@meh/notes/discovery-name`
+- **TODOs for future** → `@meh/todo/task-name`
 
-❌ **NO:**
-- Code (it's in repo)
+❌ **DO NOT DOCUMENT:**
+- Code itself (it's in git)
 - Obvious things from code
-- Temporary notes
+- Temporary notes (use comments in code instead)
+
+### 🚨 MANDATORY DOCUMENTATION CHECKLIST
+
+After EVERY task that modifies code, YOU MUST:
+
+1. ✅ Document bugs fixed: `mcp_meh_meh_write({"action": "add", "path": "@meh/bugs/...", ...})`
+2. ✅ Document changes made: `mcp_meh_meh_write({"action": "add", "path": "@meh/changelog/...", ...})`
+3. ✅ Update related facts if needed: `mcp_meh_meh_write({"action": "extend", "fact_id": "...", ...})`
+
+**If you don't document, future AI sessions won't know what you did!**
 
 ### Example Workflow
 
@@ -73,6 +93,22 @@ mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge 
 2. AI: mcp_meh_meh_facts({"action": "search", "query": "search implementation"})
 3. AI: [reads results, answers with context]
 4. AI: mcp_meh_meh_write({"action": "add", "path": "@docs/search-explained", "content": "Explanation for future sessions"})
+```
+
+**Example: Bug Fix Workflow**
+```
+1. User: "Fix the API key length bug"
+2. AI: [fixes code]
+3. AI: mcp_meh_meh_write({
+     "action": "add",
+     "path": "@meh/bugs/api-key-length-fixed",
+     "content": "# API Key Length Bug\n\n## Problem\n...\n## Solution\n...\n## Status\nFIXED 2026-02-01"
+   })
+4. AI: mcp_meh_meh_write({
+     "action": "add", 
+     "path": "@meh/changelog/api-key-refactor-2026-02-01",
+     "content": "# Refactoring...\n..."
+   })
 ```
 
 ### Context Switching (per AI session)
