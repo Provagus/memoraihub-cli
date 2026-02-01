@@ -8,7 +8,7 @@ use crate::config::{Config, WritePolicy};
 use crate::core::fact::{Fact, FactType, Status};
 use crate::core::PendingWrite;
 use crate::mcp::state::ServerState;
-use crate::mcp::tools::{MehBulkVoteTool, MehListKbsTool, MehSwitchKbTool};
+use crate::mcp::tools::{MehBulkVoteTool, MehListKbsTool, MehSwitchContextTool, MehSwitchKbTool};
 
 /// List available knowledge bases
 pub fn do_list_kbs(state: &ServerState, args: &Value) -> ToolResult {
@@ -154,4 +154,17 @@ pub fn do_bulk_vote(state: &mut ServerState, args: &Value) -> ToolResult {
         created.len(),
         created.join(", ")
     ))
+}
+
+/// Switch session context (local or remote URL)
+pub fn do_switch_context(state: &mut ServerState, args: &Value) -> ToolResult {
+    let tool_args: MehSwitchContextTool =
+        serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
+
+    state.switch_session_context(&tool_args.context)
+}
+
+/// Show current session context
+pub fn do_show_context(state: &ServerState, _args: &Value) -> ToolResult {
+    Ok(state.show_session_context())
 }

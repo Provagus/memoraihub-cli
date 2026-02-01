@@ -47,6 +47,8 @@ mcp_meh_meh_ack_notifications(notification_ids=["*"]) # acknowledge read notific
 | `mcp_meh_meh_get_notifications` | Check KB changes |
 | `mcp_meh_meh_ack_notifications` | Acknowledge read |
 | `mcp_meh_meh_subscribe` | Filter notifications |
+| `mcp_meh_meh_switch_context` | Switch to different KB (per-session) |
+| `mcp_meh_meh_show_context` | Show current session context |
 | `mcp_meh_meh_bulk_vote` | Bulk vote multiple facts in one call |
 
 ### Path Conventions
@@ -81,6 +83,18 @@ mcp_meh_meh_ack_notifications(notification_ids=["*"]) # acknowledge read notific
 3. AI: [reads results, answers with context]
 4. AI: mcp_meh_meh_add(path="@docs/search-explained", content="Explanation for future sessions")
 ```
+
+### Context Switching (per AI session)
+
+Each AI session can have its own KB context:
+
+```
+mcp_meh_meh_switch_context(context="local")  # Use local SQLite
+mcp_meh_meh_switch_context(context="http://server:3000/kb-slug")  # Use remote
+mcp_meh_meh_show_context()  # Show current session context
+```
+
+**Note:** Context switching is PER-SESSION and doesn't affect other AI chats or CLI.
 
 ## 📁 Project Structure
 

@@ -38,6 +38,8 @@ pub fn dispatch_tool(state: &mut ServerState, name: &str, args: &Value) -> ToolR
         "meh_bulk_vote" => kbs::do_bulk_vote(state, args),
         "meh_list_kbs" => kbs::do_list_kbs(state, args),
         "meh_switch_kb" => kbs::do_switch_kb(state, args),
+        "meh_switch_context" => kbs::do_switch_context(state, args),
+        "meh_show_context" => kbs::do_show_context(state, args),
 
         _ => Err(format!("Unknown tool: {}", name)),
     }

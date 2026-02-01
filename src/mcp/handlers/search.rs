@@ -324,22 +324,118 @@ fn get_onboarding_content(state: &ServerState) -> String {
             return String::new();
         }
 
-        // Try to get @readme fact
+        let _ = notif_storage.set_onboarding_shown(&state.session_id);
+
+        // Try KB-specific readme first: @readme/{kb_name}
+        let kb_readme_path = format!("@readme/{}", state.kb_name);
         let readme = state
             .storage
-            .get_by_path("@readme")
+            .get_by_path(&kb_readme_path)
             .ok()
-            .and_then(|facts| facts.into_iter().next());
+            .and_then(|facts| facts.into_iter().next())
+            .or_else(|| {
+                // Fall back to generic @readme
+                state
+                    .storage
+                    .get_by_path("@readme")
+                    .ok()
+                    .and_then(|facts| facts.into_iter().next())
+            });
 
-        if let Some(fact) = readme {
-            let _ = notif_storage.set_onboarding_shown(&state.session_id);
+        if readme.is_some() {
+            // Custom @readme exists - show short hint to read it
             return format!(
-                "📖 **Welcome to this knowledge base!**\n\n---\n\n## {}\n\n{}\n\n---\n\n💡 *This onboarding is shown once per session. Use `meh_get_fact` with `@readme` to see it again.*\n\n",
-                fact.title, fact.content
+                "📖 **Welcome!** Use `mcp_meh_meh_get_fact(id_or_path=\"@readme\")` for full instructions.\n\n"
             );
         } else {
-            let _ = notif_storage.set_onboarding_shown(&state.session_id);
+            // No @readme - show default short hint
+            return get_default_onboarding_hint();
         }
     }
     String::new()
+}
+
+/// Short default onboarding hint when no @readme exists
+fn get_default_onboarding_hint() -> String {
+    format!(
+        r#"📖 **Welcome to meh knowledge base!**
+
+**Quick start:**
+- `mcp_meh_meh_search(query="...")` - search knowledge
+- `mcp_meh_meh_browse(path="@")` - see structure
+- `mcp_meh_meh_add(path="@path", content="...")` - add knowledge
+- `mcp_meh_meh_get_fact(id_or_path="@readme")` - full instructions
+
+**Tip:** Add `@readme` fact with instructions, or `@readme/{{kb}}` for this KB specifically.
+
+"#
+    )
+}
+
+/// Get full default readme content (for meh_get_fact when no @readme exists)
+fn get_default_readme_content() -> String {
+    format!(
+        r#"# meh Knowledge Base - Full Instructions
+
+## MCP Tools (all have `mcp_meh_meh_` prefix)
+
+**Core:**
+- `search(query, path_filter?, limit?)` - Search knowledge BEFORE answering
+- `browse(path, mode?, depth?)` - Browse structure (mode: "ls"/"tree")
+- `get_fact(id_or_path, include_history?)` - Get full fact
+- `add(path, content, tags?)` - Add knowledge
+- `correct(fact_id, new_content, reason?)` - Correct fact (supersedes)
+- `extend(fact_id, extension)` - Extend fact
+- `deprecate(fact_id, reason?)` - Mark as outdated
+
+**Context (per-session):**
+- `switch_context(context)` - Switch to "local" or "http://server/kb"
+- `show_context()` - Show current KB context
+- `switch_kb(kb_name)` - Switch to KB from config
+
+**Other:**
+- `get_notifications(priority_min?, limit?)` - Check updates
+- `ack_notifications(notification_ids)` - Mark as read
+- `bulk_vote(votes)` - Vote on multiple facts
+
+## Session Workflow
+
+1. **START:** `browse(path="@")`, `search(query="recent")`
+2. **WORK:** Search first, then add discoveries
+3. **END:** `ack_notifications(["*"])`
+
+## Context Switching
+
+Each AI session has independent context:
+```
+switch_context(context="local")  # Local SQLite
+switch_context(context="http://server:3000/kb-slug")  # Remote
+show_context()  # Check current
+```
+
+**Important:** Per-session, doesn't affect other chats or CLI!
+
+## Path Conventions
+
+- `@meh/bugs/*` - Found bugs
+- `@meh/todo/*` - Tasks to do
+- `@meh/architecture/*` - Decisions
+- `@meh/board/*` - Status/feedback
+- `@docs/*` - Documentation
+- `@readme` - Global instructions
+- `@readme/{{kb}}` - KB-specific instructions
+
+## What to Document?
+
+✅ **YES:** Bugs, decisions, solutions, TODOs, observations  
+❌ **NO:** Code (in repo), obvious things, temp notes
+
+## Tips
+
+- Search BEFORE answering - answer might exist!
+- Use `bulk_vote` for multiple proposals
+- Extend facts to add votes/comments
+- Tag facts for categorization
+"#
+    )
 }

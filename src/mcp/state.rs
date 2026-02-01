@@ -24,6 +24,9 @@ pub struct ServerState {
     pub is_remote_kb: bool,
     /// Remote KB URL (if remote)
     pub remote_url: Option<String>,
+    /// Session-level context override (None = use config default)
+    /// Format: "local" or "http://server:3000/kb-slug"
+    pub session_context: Option<String>,
 }
 
 impl ServerState {
@@ -57,6 +60,7 @@ impl ServerState {
             write_policy,
             is_remote_kb: is_remote,
             remote_url,
+            session_context: None, // Start with config default
         }
     }
 
@@ -149,5 +153,96 @@ impl ServerState {
         }
 
         Ok(())
+    }
+
+    /// Get current effective context (session override or config default)
+    #[allow(dead_code)]
+    pub fn get_effective_context(&self) -> String {
+        if let Some(ref ctx) = self.session_context {
+            ctx.clone()
+        } else if self.is_remote_kb {
+            format!("{}/{}", self.remote_url.as_deref().unwrap_or(""), self.kb_name)
+        } else {
+            "local".to_string()
+        }
+    }
+
+    /// Switch session context (session-level, doesn't affect config)
+    pub fn switch_session_context(&mut self, context: &str) -> Result<String, String> {
+        if context == "local" {
+            // Switch to local
+            self.session_context = Some("local".to_string());
+            self.is_remote_kb = false;
+            self.remote_url = None;
+            
+            // Load local storage
+            let config = Config::load().map_err(|e| format!("Config error: {}", e))?;
+            let db_path = config.data_dir();
+            self.storage = Storage::open(&db_path)
+                .map_err(|e| format!("Failed to open local storage: {}", e))?;
+            
+            self.kb_name = "local".to_string();
+            self.write_policy = WritePolicy::Allow;
+            
+            return Ok("✅ Switched to local KB".to_string());
+        }
+
+        // Parse remote URL: http://server:3000/kb-slug
+        let url = url::Url::parse(context)
+            .map_err(|e| format!("Invalid URL: {}. Use format: http://server:3000/kb-slug or 'local'", e))?;
+        
+        let kb_slug = url.path().trim_start_matches('/');
+        if kb_slug.is_empty() {
+            return Err("URL must include KB slug: http://server:3000/KB_SLUG".to_string());
+        }
+
+        // Extract server base URL
+        let mut base_url = url.clone();
+        base_url.set_path("");
+        let server_url = base_url.to_string().trim_end_matches('/').to_string();
+
+        // Update session state
+        self.session_context = Some(context.to_string());
+        self.is_remote_kb = true;
+        self.remote_url = Some(server_url.clone());
+        self.kb_name = kb_slug.to_string();
+        
+        // For remote KB, assume "ask" policy by default for safety
+        self.write_policy = WritePolicy::Ask;
+
+        Ok(format!(
+            "✅ Switched to remote KB\n   Server: {}\n   KB: {}",
+            server_url, kb_slug
+        ))
+    }
+
+    /// Show current session context info
+    pub fn show_session_context(&self) -> String {
+        let mut output = String::from("📍 Current Session Context\n\n");
+
+        if let Some(ref ctx) = self.session_context {
+            output.push_str(&format!("   Mode:   Session override ({})\n", 
+                if ctx == "local" { "local" } else { "remote" }));
+            output.push_str(&format!("   Active: {}\n", ctx));
+        } else {
+            output.push_str("   Mode:   Config default\n");
+        }
+
+        if self.is_remote_kb {
+            output.push_str(&format!("   Server: {}\n", 
+                self.remote_url.as_deref().unwrap_or("unknown")));
+            output.push_str(&format!("   KB:     {}\n", self.kb_name));
+        } else {
+            output.push_str("   KB:     local\n");
+        }
+
+        output.push_str(&format!("   Write:  {:?}\n", self.write_policy));
+        output.push_str(&format!("   Session: {}\n", self.session_id));
+
+        output.push_str("\n💡 Commands:\n");
+        output.push_str("   mcp_meh_meh_switch_context(context=\"local\")  # Use local\n");
+        output.push_str("   mcp_meh_meh_switch_context(context=\"http://server:3000/kb-slug\")  # Use remote\n");
+
+        output
     }
 }

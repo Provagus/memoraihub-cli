@@ -162,6 +162,20 @@ pub struct MehSwitchKbTool {
     pub kb_name: String,
 }
 
+/// Switch session context (local or remote URL)
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MehSwitchContextTool {
+    /// Context: "local" or "http://server:3000/kb-slug"
+    pub context: String,
+}
+
+/// Show current session context
+#[derive(Debug, Deserialize, Serialize)]
+#[allow(dead_code)]
+pub struct MehShowContextTool {
+    // No arguments needed
+}
+
 /// Federated search across multiple knowledge bases
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MehFederatedSearchTool {

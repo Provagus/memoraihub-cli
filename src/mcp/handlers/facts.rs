@@ -17,6 +17,30 @@ pub fn do_get_fact(state: &ServerState, args: &Value) -> ToolResult {
     let tool_args: MehGetFactTool =
         serde_json::from_value(args.clone()).map_err(|e| format!("Invalid params: {}", e))?;
 
+    // Special case: @readme when it doesn't exist - return default
+    if tool_args.id_or_path == "@readme" || tool_args.id_or_path.starts_with("@readme/") {
+        // Try KB-specific readme first
+        let kb_readme_path = format!("@readme/{}", state.kb_name);
+        let readme = state
+            .storage
+            .get_by_path(&kb_readme_path)
+            .ok()
+            .and_then(|facts| facts.into_iter().next())
+            .or_else(|| {
+                // Fall back to generic @readme
+                state
+                    .storage
+                    .get_by_path("@readme")
+                    .ok()
+                    .and_then(|facts| facts.into_iter().next())
+            });
+
+        if readme.is_none() {
+            // No @readme in KB - return hardcoded default
+            return Ok(get_default_readme_content());
+        }
+    }
+
     let fact = if tool_args.id_or_path.starts_with("meh-") {
         // Parse ULID from string (format: meh-01ABC...)
         let ulid_str = tool_args
@@ -366,4 +390,76 @@ pub fn do_deprecate(state: &mut ServerState, args: &Value) -> ToolResult {
         .map_err(|e| format!("Deprecate error: {}", e))?;
 
     Ok(format!("✓ Deprecated fact: {}", tool_args.fact_id))
+}
+
+/// Get default readme content when no @readme fact exists
+fn get_default_readme_content() -> String {
+    format!(
+        r#"# meh Knowledge Base - Full Instructions
+
+## MCP Tools (all have `mcp_meh_meh_` prefix)
+
+**Core:**
+- `search(query, path_filter?, limit?)` - Search knowledge BEFORE answering
+- `browse(path, mode?, depth?)` - Browse structure (mode: "ls"/"tree")
+- `get_fact(id_or_path, include_history?)` - Get full fact
+- `add(path, content, tags?)` - Add knowledge
+- `correct(fact_id, new_content, reason?)` - Correct fact (supersedes)
+- `extend(fact_id, extension)` - Extend fact
+- `deprecate(fact_id, reason?)` - Mark as outdated
+
+**Context (per-session):**
+- `switch_context(context)` - Switch to "local" or "http://server/kb"
+- `show_context()` - Show current KB context
+- `switch_kb(kb_name)` - Switch to KB from config
+
+**Other:**
+- `get_notifications(priority_min?, limit?)` - Check updates
+- `ack_notifications(notification_ids)` - Mark as read
+- `bulk_vote(votes)` - Vote on multiple facts
+
+## Session Workflow
+
+1. **START:** `browse(path="@")`, `search(query="recent")`
+2. **WORK:** Search first, then add discoveries
+3. **END:** `ack_notifications(["*"])`
+
+## Context Switching
+
+Each AI session has independent context:
+```
+switch_context(context="local")  # Local SQLite
+switch_context(context="http://server:3000/kb-slug")  # Remote
+show_context()  # Check current
+```
+
+**Important:** Per-session, doesn't affect other chats or CLI!
+
+## Path Conventions
+
+- `@meh/bugs/*` - Found bugs
+- `@meh/todo/*` - Tasks to do
+- `@meh/architecture/*` - Decisions
+- `@meh/board/*` - Status/feedback
+- `@docs/*` - Documentation
+- `@readme` - Global instructions
+- `@readme/{{kb}}` - KB-specific instructions
+
+## What to Document?
+
+✅ **YES:** Bugs, decisions, solutions, TODOs, observations  
+❌ **NO:** Code (in repo), obvious things, temp notes
+
+## Tips
+
+- Search BEFORE answering - answer might exist!
+- Use `bulk_vote` for multiple proposals
+- Extend facts to add votes/comments
+- Tag facts for categorization
+
+---
+
+💡 **This is the default readme.** Add `@readme` fact to customize globally, or `@readme/{{kb_name}}` for this KB.
+"#
+    )
 }

@@ -382,5 +382,24 @@ fn tool_definitions() -> Vec<Value> {
                 "required": ["kb_name"]
             }
         }),
+        json!({
+            "name": "meh_switch_context",
+            "description": "Switch session context to local or remote KB. This is PER-SESSION and doesn't affect other AI sessions or CLI. Use 'local' for local SQLite or full URL for remote. Example: meh_switch_context({\"context\": \"local\"}) or meh_switch_context({\"context\": \"http://localhost:3000/my-kb\"})",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "context": { "type": "string", "description": "Context: 'local' or 'http://server:3000/kb-slug'" }
+                },
+                "required": ["context"]
+            }
+        }),
+        json!({
+            "name": "meh_show_context",
+            "description": "Show current session context including KB name, server URL, write policy, and session ID. Use to verify which KB you're working with.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
+        }),
     ]
 }
