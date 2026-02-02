@@ -43,7 +43,15 @@ pub struct CreateFactResponse {
     pub id: String,
     pub path: String,
     #[serde(default)]
-    pub title: String,
+    pub title: Option<String>,
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub trust_score: f32,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 /// Response from search
