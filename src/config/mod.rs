@@ -252,12 +252,35 @@ fn default_write_policy() -> WritePolicy {
 impl Config {
     /// Load config from default locations
     /// Creates default config file if none exists
+    /// 
+    /// Priority:
+    /// 1. MEH_CONFIG env var (explicit path)
+    /// 2. MEH_WORKSPACE env var + .meh/config.toml (VS Code workspace)
+    /// 3. Local .meh/config.toml (walking up from CWD)
+    /// 4. Global ~/.meh/config.toml
     pub fn load() -> Result<Self> {
-        // Try local config first, then global
+        // 1. Explicit config path from env
+        if let Ok(config_path) = std::env::var("MEH_CONFIG") {
+            let path = std::path::PathBuf::from(&config_path);
+            if path.exists() {
+                return Self::load_from(&path);
+            }
+        }
+
+        // 2. Workspace path from env (set by MCP server from VS Code)
+        if let Ok(workspace) = std::env::var("MEH_WORKSPACE") {
+            let config_path = std::path::PathBuf::from(&workspace).join(".meh").join("config.toml");
+            if config_path.exists() {
+                return Self::load_from(&config_path);
+            }
+        }
+
+        // 3. Try local config first (walking up from CWD)
         if let Some(local) = Self::find_local_config() {
             return Self::load_from(&local);
         }
 
+        // 4. Global config
         if let Some(global) = Self::global_config_path() {
             if global.exists() {
                 return Self::load_from(&global);

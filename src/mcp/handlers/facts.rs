@@ -4,13 +4,26 @@ use serde_json::Value;
 use ulid::Ulid;
 
 use super::ToolResult;
-use crate::config::WritePolicy;
+use crate::config::{Config, WritePolicy};
 use crate::core::fact::{Fact, FactType, Status};
 use crate::core::PendingWrite;
 use crate::mcp::state::ServerState;
 use crate::mcp::tools::{
     MehAddTool, MehBrowseTool, MehCorrectTool, MehDeprecateTool, MehExtendTool, MehGetFactTool,
 };
+use crate::remote::BlockingRemoteClient;
+
+/// Create a blocking remote client from MCP state
+fn create_remote_client(state: &ServerState) -> Result<BlockingRemoteClient, String> {
+    let config = Config::load().map_err(|e| format!("Config error: {}", e))?;
+    let server_url = state
+        .remote_url
+        .as_deref()
+        .ok_or("No remote URL set")?;
+
+    BlockingRemoteClient::from_url(server_url, &state.kb_name, &config)
+        .map_err(|e| format!("Failed to create remote client: {}", e))
+}
 
 /// Get a single fact by ID or path
 pub fn do_get_fact(state: &ServerState, args: &Value) -> ToolResult {
@@ -158,7 +171,20 @@ pub fn do_add(state: &mut ServerState, args: &Value) -> ToolResult {
         ));
     }
 
-    // Create title from first line or first 50 chars
+    // If remote KB with "allow" policy, send directly to remote server
+    if state.is_remote_kb && state.write_policy == WritePolicy::Allow {
+        let client = create_remote_client(state)?;
+        let result = client
+            .add_fact(&tool_args.path, &tool_args.content, &tool_args.tags)
+            .map_err(|e| format!("Remote error: {}", e))?;
+
+        return Ok(format!(
+            "✓ Created fact on remote: {}\n  Path: {}",
+            result.id, tool_args.path
+        ));
+    }
+
+    // Local KB: create fact locally
     let title = tool_args
         .content
         .lines()
@@ -242,6 +268,19 @@ pub fn do_correct(state: &mut ServerState, args: &Value) -> ToolResult {
         return Ok(format!(
             "⏳ Queued correction for remote KB '{}' (pending approval): queue-{}\n  Will supersede: {}{}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
             state.kb_name, id, original_id_str, resolve_note
+        ));
+    }
+
+    // If remote KB with "allow" policy, send directly to remote server
+    if state.is_remote_kb && state.write_policy == WritePolicy::Allow {
+        let client = create_remote_client(state)?;
+        let result = client
+            .correct_fact(&original_id_str, &tool_args.new_content)
+            .map_err(|e| format!("Remote error: {}", e))?;
+
+        return Ok(format!(
+            "✓ Created correction on remote: {}\n  Supersedes: {}{}",
+            result.id, original_id_str, resolve_note
         ));
     }
 
@@ -332,6 +371,19 @@ pub fn do_extend(state: &mut ServerState, args: &Value) -> ToolResult {
         ));
     }
 
+    // If remote KB with "allow" policy, send directly to remote server
+    if state.is_remote_kb && state.write_policy == WritePolicy::Allow {
+        let client = create_remote_client(state)?;
+        let result = client
+            .extend_fact(&original_id_str, &tool_args.extension)
+            .map_err(|e| format!("Remote error: {}", e))?;
+
+        return Ok(format!(
+            "✓ Created extension on remote: {}\n  Extends: {}{}",
+            result.id, original_id_str, resolve_note
+        ));
+    }
+
     // Create extension fact
     let title = format!("Extension: {}", original.title);
     let mut extension = Fact::new(&original.path, &title, &tool_args.extension);
@@ -408,6 +460,19 @@ pub fn do_deprecate(state: &mut ServerState, args: &Value) -> ToolResult {
         return Ok(format!(
             "⏳ Queued deprecation for remote KB '{}' (pending approval): queue-{}\n  Fact: {}{}\n  ℹ️ Human review required. Run `meh pending -i` for interactive review",
             state.kb_name, id, original_id_str, resolve_note
+        ));
+    }
+
+    // If remote KB with "allow" policy, send directly to remote server
+    if state.is_remote_kb && state.write_policy == WritePolicy::Allow {
+        let client = create_remote_client(state)?;
+        client
+            .deprecate_fact(&original_id_str, tool_args.reason.as_deref())
+            .map_err(|e| format!("Remote error: {}", e))?;
+
+        return Ok(format!(
+            "✓ Deprecated fact on remote: {}{}",
+            original_id_str, resolve_note
         ));
     }
 

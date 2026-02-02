@@ -13,6 +13,7 @@ use crate::config::Config;
 use crate::core::fact::Fact;
 use crate::core::pending_queue::{PendingQueue, PendingWrite, PendingWriteType};
 use crate::core::storage::Storage;
+use crate::remote::BlockingRemoteClient;
 
 #[derive(Args, Debug)]
 pub struct PendingArgs {
@@ -289,7 +290,13 @@ fn run_interactive_review(
                 // View full content
                 println!("\n\x1b[1m=== Full Content ===\x1b[0m\n");
                 println!("{}", item.content());
-                println!("\n\x1b[1m=== End ===\x1b[0m\n");
+                println!("\n\x1b[1m=== End ===\x1b[0m");
+                // Wait for user to press Enter before showing menu again
+                print!("\n\x1b[90mPress Enter to continue...\x1b[0m");
+                use std::io::{self, Write};
+                let _ = io::stdout().flush();
+                let _ = io::stdin().read_line(&mut String::new());
+                println!();
                 // Don't increment idx, let user act on same item
             }
             3 => {
@@ -629,87 +636,23 @@ fn reject_all(storage: Option<&Storage>, queue: &PendingQueue, skip_confirm: boo
 
 /// Push a pending write to remote KB via HTTP
 fn push_to_remote(item: &PendingWrite, config: &Config) -> Result<()> {
-    use std::time::Duration;
+    let client = BlockingRemoteClient::from_config(config, &item.target_kb)?;
 
-    let kb_config = config
-        .get_kb(&item.target_kb)
-        .ok_or_else(|| anyhow::anyhow!("KB '{}' not found in config", item.target_kb))?;
-
-    // Get server info for this KB
-    let server = config
-        .get_server_for_kb(&item.target_kb)
-        .ok_or_else(|| anyhow::anyhow!("No server configured for KB '{}'", item.target_kb))?;
-
-    let slug = kb_config
-        .slug
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("No slug configured for KB '{}'", item.target_kb))?;
-
-    // Build HTTP client
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(server.timeout_secs))
-        .build()?;
-
-    // Determine endpoint and payload based on write type
-    let (endpoint, payload) = match item.write_type {
+    match item.write_type {
         PendingWriteType::Add => {
-            let endpoint = format!("{}/api/v1/kbs/{}/facts", server.url, slug);
-            let payload = serde_json::json!({
-                "path": item.path,
-                "content": item.content,
-                "tags": item.tags,
-            });
-            (endpoint, payload)
+            client.add_fact(&item.path, &item.content, &item.tags)?;
         }
         PendingWriteType::Correct => {
-            let endpoint = format!(
-                "{}/api/v1/kbs/{}/facts/{}/correct",
-                server.url,
-                slug,
-                item.supersedes.as_deref().unwrap_or("")
-            );
-            let payload = serde_json::json!({
-                "new_content": item.content,
-            });
-            (endpoint, payload)
+            let fact_id = item.supersedes.as_deref().unwrap_or("");
+            client.correct_fact(fact_id, &item.content)?;
         }
         PendingWriteType::Extend => {
-            let endpoint = format!(
-                "{}/api/v1/kbs/{}/facts/{}/extend",
-                server.url,
-                slug,
-                item.extends.as_deref().unwrap_or("")
-            );
-            let payload = serde_json::json!({
-                "extension": item.content,
-            });
-            (endpoint, payload)
+            let fact_id = item.extends.as_deref().unwrap_or("");
+            client.extend_fact(fact_id, &item.content)?;
         }
         PendingWriteType::Deprecate => {
-            let endpoint = format!(
-                "{}/api/v1/kbs/{}/facts/{}/deprecate",
-                server.url, slug, item.path
-            );
-            let payload = serde_json::json!({
-                "reason": item.reason,
-            });
-            (endpoint, payload)
+            client.deprecate_fact(&item.path, item.reason.as_deref())?;
         }
-    };
-
-    // Make request
-    let mut request = client.post(&endpoint).json(&payload);
-
-    if let Some(ref key) = server.api_key {
-        request = request.header("X-API-Key", key);
-    }
-
-    let response = request.send()?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().unwrap_or_default();
-        anyhow::bail!("Remote API error ({}): {}", status, body);
     }
 
     Ok(())

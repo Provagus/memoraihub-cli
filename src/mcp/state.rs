@@ -215,8 +215,23 @@ impl ServerState {
         self.remote_url = Some(server_url.clone());
         self.kb_name = kb_slug.to_string();
 
-        // For remote KB, assume "ask" policy by default for safety
-        self.write_policy = WritePolicy::Ask;
+        // Check if there's a KB config matching this server+slug
+        let config = Config::load().ok();
+        let matched_kb = config.as_ref().and_then(|cfg| {
+            cfg.kbs.kb.iter().find(|kb| {
+                kb.kb_type == "remote"
+                    && kb.slug.as_deref() == Some(kb_slug)
+                    && kb.server.as_ref().map_or(false, |srv_name| {
+                        cfg.get_server(srv_name)
+                            .map_or(false, |s| s.url.trim_end_matches('/') == server_url.trim_end_matches('/'))
+                    })
+            })
+        });
+
+        // Use policy from config if KB is configured, otherwise default to Ask for safety
+        self.write_policy = matched_kb
+            .map(|kb| kb.write.clone())
+            .unwrap_or(WritePolicy::Ask);
 
         Ok(format!(
             "✅ Switched to remote KB\n   Server: {}\n   KB: {}",

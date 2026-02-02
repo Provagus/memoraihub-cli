@@ -45,7 +45,7 @@ decay_rate = 0.01        # Trust decay over time
 
 # [[servers]]
 # name = "memoraihub"
-# url = "https://api.memoraihub.com"
+# url = "https://memoraihub.com"
 # api_key = "meh_xxx_public_key"
 # timeout_secs = 30
 
