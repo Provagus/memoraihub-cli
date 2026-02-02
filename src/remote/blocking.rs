@@ -160,7 +160,10 @@ impl BlockingRemoteClient {
     }
 
     /// Build request with auth header
-    fn auth_request(&self, builder: reqwest::blocking::RequestBuilder) -> reqwest::blocking::RequestBuilder {
+    fn auth_request(
+        &self,
+        builder: reqwest::blocking::RequestBuilder,
+    ) -> reqwest::blocking::RequestBuilder {
         if let Some(ref key) = self.api_key {
             builder.header("X-API-Key", key)
         } else {
@@ -169,7 +172,10 @@ impl BlockingRemoteClient {
     }
 
     /// Handle response, returning parsed JSON or error
-    fn handle_response<T: for<'de> Deserialize<'de>>(&self, response: reqwest::blocking::Response) -> Result<T> {
+    fn handle_response<T: for<'de> Deserialize<'de>>(
+        &self,
+        response: reqwest::blocking::Response,
+    ) -> Result<T> {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().unwrap_or_default();
@@ -181,7 +187,12 @@ impl BlockingRemoteClient {
     // ============== Fact Operations ==============
 
     /// Add a new fact
-    pub fn add_fact(&self, path: &str, content: &str, tags: &[String]) -> Result<CreateFactResponse> {
+    pub fn add_fact(
+        &self,
+        path: &str,
+        content: &str,
+        tags: &[String],
+    ) -> Result<CreateFactResponse> {
         let url = format!("{}/api/v1/kbs/{}/facts", self.server_url, self.kb_slug);
 
         let payload = serde_json::json!({
@@ -254,7 +265,12 @@ impl BlockingRemoteClient {
     }
 
     /// Search facts
-    pub fn search(&self, query: &str, path_filter: Option<&str>, limit: Option<u32>) -> Result<SearchResponse> {
+    pub fn search(
+        &self,
+        query: &str,
+        path_filter: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<SearchResponse> {
         let mut url = format!(
             "{}/api/v1/kbs/{}/search?q={}",
             self.server_url,
@@ -276,7 +292,12 @@ impl BlockingRemoteClient {
     }
 
     /// Browse paths
-    pub fn browse(&self, path: &str, limit: Option<u32>, cursor: Option<&str>) -> Result<BrowseResponse> {
+    pub fn browse(
+        &self,
+        path: &str,
+        limit: Option<u32>,
+        cursor: Option<&str>,
+    ) -> Result<BrowseResponse> {
         let mut url = format!(
             "{}/api/v1/kbs/{}/browse?path={}",
             self.server_url,

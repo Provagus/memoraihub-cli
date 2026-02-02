@@ -252,7 +252,7 @@ fn default_write_policy() -> WritePolicy {
 impl Config {
     /// Load config from default locations
     /// Creates default config file if none exists
-    /// 
+    ///
     /// Priority:
     /// 1. MEH_CONFIG env var (explicit path)
     /// 2. MEH_WORKSPACE env var + .meh/config.toml (VS Code workspace)
@@ -269,7 +269,9 @@ impl Config {
 
         // 2. Workspace path from env (set by MCP server from VS Code)
         if let Ok(workspace) = std::env::var("MEH_WORKSPACE") {
-            let config_path = std::path::PathBuf::from(&workspace).join(".meh").join("config.toml");
+            let config_path = std::path::PathBuf::from(&workspace)
+                .join(".meh")
+                .join("config.toml");
             if config_path.exists() {
                 return Self::load_from(&config_path);
             }

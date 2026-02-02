@@ -16,10 +16,7 @@ use crate::remote::BlockingRemoteClient;
 /// Create a blocking remote client from MCP state
 fn create_remote_client(state: &ServerState) -> Result<BlockingRemoteClient, String> {
     let config = Config::load().map_err(|e| format!("Config error: {}", e))?;
-    let server_url = state
-        .remote_url
-        .as_deref()
-        .ok_or("No remote URL set")?;
+    let server_url = state.remote_url.as_deref().ok_or("No remote URL set")?;
 
     BlockingRemoteClient::from_url(server_url, &state.kb_name, &config)
         .map_err(|e| format!("Failed to create remote client: {}", e))

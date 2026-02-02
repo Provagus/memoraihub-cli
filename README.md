@@ -78,6 +78,14 @@ This guides you step-by-step through adding a new KB (local SQLite or remote ser
 primary = "local"
 search_order = ["local", "company"]
 
+# Define servers with authentication
+[[servers]]
+name = "company-server"
+url = "https://kb.company.com"
+api_key = "meh_your_api_key_here"  # Or use env: api_key_env = "MEH_COMPANY_KEY"
+timeout_secs = 30
+
+# Define knowledge bases
 [[kbs.kb]]
 name = "local"
 kb_type = "sqlite"
@@ -86,8 +94,8 @@ write = "allow"
 [[kbs.kb]]
 name = "company"
 kb_type = "remote"
-url = "https://kb.company.com"
-api_key_env = "MEH_COMPANY_KEY"  # Set: export MEH_COMPANY_KEY=your-key
+server = "company-server"  # References [[servers]] entry
+slug = "my-team"
 write = "allow"
 ```
 
@@ -97,15 +105,15 @@ See [config.example.toml](config.example.toml) for all options.
 
 | Option | Description |
 | ------ | ----------- |
-| `--db <path>` | Path to database (default: `.meh/data.db`) |
-| `--auto-init` | Create database if it doesn't exist |
+| `--stdio` | Run in MCP mode (JSON-RPC over stdin/stdout) |
+| `--auto-init` | Create database and config if they don't exist |
 
 ### Environment Variables
 
 | Variable | Description |
 | -------- | ----------- |
-| `MEH_DATABASE` | Path to database file |
-| `MEH_CONFIG` | Path to config file |
+| `MEH_DATABASE` | Path to database file (default: `.meh/meh.db`) |
+| `MEH_CONFIG` | Path to config file (default: `.meh/config.toml`) |
 
 ---
 
@@ -131,18 +139,24 @@ meh pending reject meh-xxx    # Reject
 
 ## 🤖 MCP Tools for AI
 
-Preferred (Merged Tools v2, 4 total):
+Meh provides 4 unified tools (Merged Tools v2):
 
 | Tool | Actions | Purpose |
 | ---- | ------- | ------- |
-| `meh_facts` | search, get, browse, federated_search | FTS search, fetch fact, browse paths, multi-KB search |
-| `meh_write` | add, correct, extend, deprecate, bulk_vote | Create, supersede, extend, deprecate, batch votes |
-| `meh_notify` | get, ack, subscribe | Session notifications (pull, acknowledge, manage subscriptions) |
-| `meh_context` | list_kbs, switch_kb, switch_context, show | List/show/switch knowledge bases and contexts |
+| `mcp_meh_meh_facts` | search, get, browse, federated_search | FTS search, fetch fact, browse paths, multi-KB search |
+| `mcp_meh_meh_write` | add, correct, extend, deprecate, bulk_vote | Create, supersede, extend, deprecate, batch votes |
+| `mcp_meh_meh_notify` | get, ack, subscribe | Session notifications (pull, acknowledge, manage subscriptions) |
+| `mcp_meh_meh_context` | list_kbs, switch_kb, switch_context, show | List/show/switch knowledge bases and contexts |
 
-Client naming:
-- VS Code MCP: use the prefixed identifiers `mcp_meh_meh_facts`, `mcp_meh_meh_write`, `mcp_meh_meh_notify`, `mcp_meh_meh_context` with the action field.
-- Other MCP clients (e.g., Claude Code): often expose the shorter names above (`meh_facts`, `meh_write`, ...).
+**Tool Naming:**
+- VS Code Copilot: Always use prefixed names (`mcp_meh_meh_facts`, etc.) with an `action` parameter
+- Other MCP clients: May use shorter names (`meh_facts`, `meh_write`, etc.)
+
+**Example usage (VS Code):**
+```json
+{"tool": "mcp_meh_meh_facts", "action": "search", "query": "authentication"}
+{"tool": "mcp_meh_meh_write", "action": "add", "path": "@project/bug", "content": "# Bug..."}
+```
 
 Onboarding: keep a fact at `@readme`; the MCP server auto-displays it on the first search in a session if present.
 
@@ -160,14 +174,16 @@ You have access to a knowledge base via MCP. Use it to:
 - **Save** discoveries, decisions, bugs for future sessions
 
 ### Workflow
-1. At session start: `meh_facts` with action `browse` on `@` (depth 1-2) and note `@readme` if returned.
-2. Before answering: `meh_facts` with action `search` (add path/tags filters if needed).
-3. After discoveries: `meh_write` with action `add` to `@project/topic`, or `extend`/`correct` as appropriate.
-```
+1. At session start: `mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree", "depth": 2})`
+2. Read onboarding: `mcp_meh_meh_facts({"action": "get", "id_or_path": "@readme"})`
+3. Before answering: `mcp_meh_meh_facts({"action": "search", "query": "your topic"})`
+4. After discoveries: `mcp_meh_meh_write({"action": "add", "path": "@project/topic", "content": "# Title\n\n..."})`
+
 ### Path Conventions
 - `@project/bugs/*` — found bugs
-- `@project/architecture/*` — architecture decisions
+- `@project/architecture/*` — architecture decisions  
 - `@project/api/*` — API documentation
+- `@project/changelog/*` — changes and refactoring
 ```
 
 ---
@@ -225,10 +241,10 @@ meh gc                       # Remove old deprecated facts
 
 ```
 .meh/
-├── config.toml      # Configuration (optional)
-├── data.db          # Main facts database
+├── config.toml      # Configuration (auto-generated)
+├── meh.db           # Main facts database (SQLite + FTS5)
 ├── notifications.db # Sessions and notifications
-└── pending_queue.db # Queue for remote KB writes
+└── pending_queue.db # Queue for write=ask policy
 ```
 
 ### Full Configuration

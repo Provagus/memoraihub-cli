@@ -222,8 +222,9 @@ impl ServerState {
                 kb.kb_type == "remote"
                     && kb.slug.as_deref() == Some(kb_slug)
                     && kb.server.as_ref().map_or(false, |srv_name| {
-                        cfg.get_server(srv_name)
-                            .map_or(false, |s| s.url.trim_end_matches('/') == server_url.trim_end_matches('/'))
+                        cfg.get_server(srv_name).map_or(false, |s| {
+                            s.url.trim_end_matches('/') == server_url.trim_end_matches('/')
+                        })
                     })
             })
         });
