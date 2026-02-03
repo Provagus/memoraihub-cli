@@ -2,9 +2,14 @@
 
 ## About
 
-<!-- Short project description - 1-2 sentences -->
+<!-- Short project/KB description - 1-2 sentences -->
 
 ## For AI - Session Workflow
+
+### 0. FIRST: Connect to remote KB (if using remote)
+```
+mcp_meh_meh_context({"action": "switch_context", "context": "{SERVER_URL}/{KB_SLUG}"})
+```
 
 ### 1. START session
 ```
@@ -16,7 +21,7 @@ mcp_meh_meh_facts({"action": "get", "id_or_path": "@readme"})  # you're reading 
 ### 2. WORK
 ```
 mcp_meh_meh_facts({"action": "search", "query": "topic"})      # BEFORE answering
-mcp_meh_meh_write({"action": "add", "path": "@path", "content": "..."})  # document discoveries
+mcp_meh_meh_write({"action": "add", "path": "@.../topic", "content": "..."})  # document discoveries
 ```
 
 ### 3. END
@@ -26,18 +31,21 @@ mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge 
 
 ## Path Structure
 
+Paths are flexible. Browse existing structure and follow conventions:
+
 ```
+# Common patterns:
 @docs/       - documentation
 @bugs/       - found bugs
 @todo/       - tasks to do
 @decisions/  - architectural decisions
+
+# Or organize by project/component:
+@project-name/bugs/...
+@project-name/docs/...
 ```
 
 ## What to Document?
 
-✅ YES: bugs, decisions, solutions, TODOs, feedback
-❌ NO: code, obvious things, temporary notes
-
-## Project
-
-<!-- Short project structure description -->
+✅ YES: bugs, decisions, solutions, TODOs, discoveries
+❌ NO: code (it's in git), obvious things, temporary notes

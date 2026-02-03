@@ -16,8 +16,10 @@ pub struct ServerState {
     pub initialized: bool,
     /// Unique session ID for this MCP connection
     pub session_id: String,
-    /// Current KB name (for write policy checking)
+    /// Current KB name from config (for display and write policy)
     pub kb_name: String,
+    /// Current KB slug (for remote API calls)
+    pub kb_slug: Option<String>,
     /// Write policy for current KB
     pub write_policy: WritePolicy,
     /// Whether current KB is remote
@@ -27,6 +29,8 @@ pub struct ServerState {
     /// Session-level context override (None = use config default)
     /// Format: "local" or "http://server:3000/kb-slug"
     pub session_context: Option<String>,
+    /// Whether this is the first tool call in this session
+    pub first_tool_call: bool,
 }
 
 impl ServerState {
@@ -34,12 +38,15 @@ impl ServerState {
     pub fn new(storage: Storage) -> Self {
         let session_id = format!("mcp-{}", Ulid::new());
 
-        let (kb_name, write_policy, is_remote, remote_url) = match Config::load() {
+        let (kb_name, kb_slug, write_policy, is_remote, remote_url, session_context) = match Config::load() {
             Ok(config) => {
                 let kb_name = config.primary_kb().to_string();
                 let policy = config.get_write_policy(&kb_name);
                 let kb_config = config.get_kb(&kb_name);
                 let is_remote = kb_config.map(|k| k.kb_type == "remote").unwrap_or(false);
+
+                // Get slug from KB config (for remote API calls)
+                let slug = kb_config.and_then(|k| k.slug.clone());
 
                 let url = kb_config.and_then(|k| {
                     k.server
@@ -47,9 +54,18 @@ impl ServerState {
                         .and_then(|srv_name| config.get_server(srv_name).map(|s| s.url.clone()))
                 });
 
-                (kb_name, policy, is_remote, url)
+                // Build session_context for remote KB
+                let ctx = if is_remote {
+                    slug.as_ref().and_then(|s| {
+                        url.as_ref().map(|u| format!("{}/{}", u.trim_end_matches('/'), s))
+                    })
+                } else {
+                    Some("local".to_string())
+                };
+
+                (kb_name, slug, policy, is_remote, url, ctx)
             }
-            Err(_) => ("local".to_string(), WritePolicy::Allow, false, None),
+            Err(_) => ("local".to_string(), None, WritePolicy::Allow, false, None, Some("local".to_string())),
         };
 
         Self {
@@ -57,11 +73,61 @@ impl ServerState {
             initialized: false,
             session_id,
             kb_name,
+            kb_slug,
             write_policy,
             is_remote_kb: is_remote,
             remote_url,
-            session_context: None, // Start with config default
+            session_context,
+            first_tool_call: true,
         }
+    }
+
+    /// Get welcome message for first tool call (includes readme + context)
+    pub fn get_first_call_message(&mut self) -> Option<String> {
+        if !self.first_tool_call {
+            return None;
+        }
+        self.first_tool_call = false;
+
+        let context_info = format!(
+            "📍 **Current KB:** {} ({})\n   **Write:** {:?}\n   **Session:** {}\n",
+            self.kb_name,
+            if self.is_remote_kb { "remote" } else { "local" },
+            self.write_policy,
+            self.session_id
+        );
+
+        let quick_start = r#"
+## 🚀 Quick Start
+
+**Search before answering:**
+```
+mcp_meh_meh_facts({"action": "search", "query": "topic"})
+```
+
+**Browse structure:**
+```
+mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})
+```
+
+**Add knowledge:**
+```
+mcp_meh_meh_write({"action": "add", "path": "@path/to/fact", "content": "..."})
+```
+
+**Switch KB:**
+```
+mcp_meh_meh_context({"action": "list_kbs"})
+mcp_meh_meh_context({"action": "switch_kb", "kb_name": "..."})
+```
+
+💡 **Tip:** Always document bugs fixed and changes made!
+"#;
+
+        Some(format!(
+            "🧠 **meh Knowledge Base - Session Started**\n\n{}\n{}",
+            context_info, quick_start
+        ))
     }
 
     /// Open pending queue for remote KB writes
@@ -126,17 +192,28 @@ impl ServerState {
             )
         })?;
 
-        // Update remote status
+        // Update KB slug (for remote API calls)
+        self.kb_slug = kb_config.slug.clone();
+
+        // Update remote status and session_context
         if kb_config.kb_type == "remote" {
             let server = config.get_server_for_kb(kb_name);
             self.is_remote_kb = true;
             self.remote_url = server.map(|s| s.url.clone());
+            
+            // Build full URL for session_context
+            if let (Some(ref url), Some(ref slug)) = (&self.remote_url, &kb_config.slug) {
+                self.session_context = Some(format!("{}/{}", url.trim_end_matches('/'), slug));
+            } else {
+                self.session_context = None;
+            }
         } else {
             self.is_remote_kb = false;
             self.remote_url = None;
+            self.session_context = Some("local".to_string());
         }
 
-        // Update write policy
+        // Update write policy and name
         self.write_policy = config.get_write_policy(kb_name);
         self.kb_name = kb_name.to_string();
 
@@ -178,6 +255,7 @@ impl ServerState {
             self.session_context = Some("local".to_string());
             self.is_remote_kb = false;
             self.remote_url = None;
+            self.kb_slug = None;
 
             // Load local storage
             let config = Config::load().map_err(|e| format!("Config error: {}", e))?;
@@ -199,8 +277,8 @@ impl ServerState {
             )
         })?;
 
-        let kb_slug = url.path().trim_start_matches('/');
-        if kb_slug.is_empty() {
+        let parsed_slug = url.path().trim_start_matches('/');
+        if parsed_slug.is_empty() {
             return Err("URL must include KB slug: http://server:3000/KB_SLUG".to_string());
         }
 
@@ -213,14 +291,14 @@ impl ServerState {
         self.session_context = Some(context.to_string());
         self.is_remote_kb = true;
         self.remote_url = Some(server_url.clone());
-        self.kb_name = kb_slug.to_string();
+        self.kb_slug = Some(parsed_slug.to_string());
 
         // Check if there's a KB config matching this server+slug
         let config = Config::load().ok();
         let matched_kb = config.as_ref().and_then(|cfg| {
             cfg.kbs.kb.iter().find(|kb| {
                 kb.kb_type == "remote"
-                    && kb.slug.as_deref() == Some(kb_slug)
+                    && kb.slug.as_deref() == Some(parsed_slug)
                     && kb.server.as_ref().map_or(false, |srv_name| {
                         cfg.get_server(srv_name).map_or(false, |s| {
                             s.url.trim_end_matches('/') == server_url.trim_end_matches('/')
@@ -229,14 +307,19 @@ impl ServerState {
             })
         });
 
+        // Use KB name from config if found, otherwise use slug
+        self.kb_name = matched_kb
+            .map(|kb| kb.name.clone())
+            .unwrap_or_else(|| parsed_slug.to_string());
+
         // Use policy from config if KB is configured, otherwise default to Ask for safety
         self.write_policy = matched_kb
             .map(|kb| kb.write.clone())
             .unwrap_or(WritePolicy::Ask);
 
         Ok(format!(
-            "✅ Switched to remote KB\n   Server: {}\n   KB: {}",
-            server_url, kb_slug
+            "✅ Switched to remote KB\n   Name:   {}\n   Server: {}\n   Slug:   {}",
+            self.kb_name, server_url, parsed_slug
         ))
     }
 
@@ -244,34 +327,31 @@ impl ServerState {
     pub fn show_session_context(&self) -> String {
         let mut output = String::from("📍 Current Session Context\n\n");
 
-        if let Some(ref ctx) = self.session_context {
-            output.push_str(&format!(
-                "   Mode:   Session override ({})\n",
-                if ctx == "local" { "local" } else { "remote" }
-            ));
-            output.push_str(&format!("   Active: {}\n", ctx));
-        } else {
-            output.push_str("   Mode:   Config default\n");
-        }
+        output.push_str(&format!("   KB Name: {}\n", self.kb_name));
 
         if self.is_remote_kb {
             output.push_str(&format!(
-                "   Server: {}\n",
+                "   Type:    remote\n"
+            ));
+            output.push_str(&format!(
+                "   Server:  {}\n",
                 self.remote_url.as_deref().unwrap_or("unknown")
             ));
-            output.push_str(&format!("   KB:     {}\n", self.kb_name));
+            if let Some(ref ctx) = self.session_context {
+                if ctx != "local" {
+                    output.push_str(&format!("   URL:     {}\n", ctx));
+                }
+            }
         } else {
-            output.push_str("   KB:     local\n");
+            output.push_str("   Type:    local (SQLite)\n");
         }
 
-        output.push_str(&format!("   Write:  {:?}\n", self.write_policy));
+        output.push_str(&format!("   Write:   {:?}\n", self.write_policy));
         output.push_str(&format!("   Session: {}\n", self.session_id));
 
         output.push_str("\n💡 Commands:\n");
-        output.push_str("   mcp_meh_meh_switch_context(context=\"local\")  # Use local\n");
-        output.push_str(
-            "   mcp_meh_meh_switch_context(context=\"http://server:3000/kb-slug\")  # Use remote\n",
-        );
+        output.push_str("   mcp_meh_meh_context({\"action\": \"list_kbs\"})  # Show all KBs\n");
+        output.push_str("   mcp_meh_meh_context({\"action\": \"switch_kb\", \"kb_name\": \"...\"})  # Switch by name\n");
 
         output
     }

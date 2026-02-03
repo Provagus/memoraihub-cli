@@ -93,15 +93,26 @@ impl MehMcpServer {
             .ok_or((-32602, "Missing tool name".to_string()))?;
         let arguments = &params["arguments"];
 
+        // Get first-call welcome message before dispatching (sets flag to false)
+        let welcome = self.state.get_first_call_message();
+
         let result = handlers::dispatch_tool(&mut self.state, name, arguments);
 
         match result {
-            Ok(text) => Ok(json!({
-                "content": [{
-                    "type": "text",
-                    "text": text
-                }]
-            })),
+            Ok(text) => {
+                // Prepend welcome message on first tool call
+                let final_text = if let Some(welcome_msg) = welcome {
+                    format!("{}\n---\n\n{}", welcome_msg, text)
+                } else {
+                    text
+                };
+                Ok(json!({
+                    "content": [{
+                        "type": "text",
+                        "text": final_text
+                    }]
+                }))
+            }
             Err(e) => Ok(json!({
                 "content": [{
                     "type": "text",

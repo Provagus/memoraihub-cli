@@ -17,8 +17,13 @@ use crate::remote::BlockingRemoteClient;
 fn create_remote_client(state: &ServerState) -> Result<BlockingRemoteClient, String> {
     let config = Config::load().map_err(|e| format!("Config error: {}", e))?;
     let server_url = state.remote_url.as_deref().ok_or("No remote URL set")?;
+    
+    // Use kb_slug for API calls (not kb_name which is just a config display name)
+    let slug = state.kb_slug.as_deref().ok_or_else(|| {
+        format!("No KB slug configured for '{}'. Check config.", state.kb_name)
+    })?;
 
-    BlockingRemoteClient::from_url(server_url, &state.kb_name, &config)
+    BlockingRemoteClient::from_url(server_url, slug, &config)
         .map_err(|e| format!("Failed to create remote client: {}", e))
 }
 

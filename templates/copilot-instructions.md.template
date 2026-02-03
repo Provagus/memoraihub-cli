@@ -12,10 +12,25 @@ MCP tools have `mcp_meh_` prefix:
 - ❌ `meh_facts` (conceptual name)
 - ✅ `mcp_meh_meh_facts` (actual tool name)
 
+### 🌐 KB Configuration
+
+**This project uses a knowledge base.** The default KB is configured in `.meh/config.toml`.
+
+| Setting | Value |
+|---------|-------|
+| KB Name | `{KB_NAME}` |
+
 ### Session Workflow
 
 #### 1. START - at the beginning of session
 ```
+# Check current KB (should auto-connect to default from config)
+mcp_meh_meh_context({"action": "show"})
+
+# If you need to switch to a different KB:
+mcp_meh_meh_context({"action": "switch_kb", "kb_name": "{KB_NAME}"})
+
+# Then check notifications and browse
 mcp_meh_meh_notify({"action": "get"})           # check what changed
 mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})  # see structure
 mcp_meh_meh_facts({"action": "get", "id_or_path": "@readme"})  # read onboarding
@@ -24,21 +39,21 @@ mcp_meh_meh_facts({"action": "get", "id_or_path": "@readme"})  # read onboarding
 #### 2. WORK - during task
 ```
 mcp_meh_meh_facts({"action": "search", "query": "topic"})  # BEFORE answering
-mcp_meh_meh_write({"action": "add", "path": "@path", "content": "..."})  # document discoveries
+mcp_meh_meh_write({"action": "add", "path": "@path/to/fact", "content": "..."})  # document discoveries
 mcp_meh_meh_write({"action": "bulk_vote", "votes": [{"fact_id":"meh-01XXX","vote":"+1","reason":"Agree"}]})  # vote on proposals
 ```
 
 #### 3. END - after finishing
 ```
-mcp_meh_meh_write({"action": "add", "path": "@meh/bugs/...", "content": "..."})  # DOCUMENT BUGS FIXED
-mcp_meh_meh_write({"action": "add", "path": "@meh/changelog/...", "content": "..."})  # DOCUMENT CHANGES
+mcp_meh_meh_write({"action": "add", "path": "@.../bugs/...", "content": "..."})  # DOCUMENT BUGS FIXED
+mcp_meh_meh_write({"action": "add", "path": "@.../changelog/...", "content": "..."})  # DOCUMENT CHANGES
 mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge notifications
 ```
 
 **⚠️ CRITICAL: Always document your work!**
-- Fixed a bug? → `mcp_meh_meh_write()` to `@meh/bugs/...`
-- Made changes? → `mcp_meh_meh_write()` to `@meh/changelog/...`
-- Found something important? → `mcp_meh_meh_write()` to appropriate path
+- Fixed a bug? → document it
+- Made changes? → document them
+- Found something important? → document it
 - **DO NOT SKIP THIS STEP** - future sessions need this context!
 
 ### Available Tools (4 merged tools)
@@ -52,24 +67,38 @@ mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge 
 
 ### Path Conventions
 
+Paths are flexible - organize them as makes sense for your project. Common patterns:
+
 ```
+# By type (flat)
 @docs/           - documentation
 @bugs/           - found bugs
 @todo/           - tasks to do
 @decisions/      - architectural decisions
-@board/          - dashboards and status
+
+# By project/component (hierarchical)
+@project-name/bugs/...
+@project-name/docs/...
+@component/feature/...
+
+# Examples
+@backend/api/auth-flow
+@frontend/bugs/login-issue
+@infra/decisions/use-postgres
 ```
+
+**💡 TIP:** Browse existing structure first with `mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})` and follow the existing conventions.
 
 ### What to Document?
 
-✅ **ALWAYS DOCUMENT (use mcp_meh_meh_write):**
-- **Any bug you found and fixed** → `@meh/bugs/bug-name`
-- **Any code changes or refactoring** → `@meh/changelog/change-name`
-- **Architectural decisions made** → `@meh/architecture/decision-name`
-- **Security improvements** → `@meh/server/security-*` (extend if exists)
-- **New features implemented** → `@meh/changelog/feature-name`
-- **Important discoveries** → `@meh/notes/discovery-name`
-- **TODOs for future** → `@meh/todo/task-name`
+✅ **ALWAYS DOCUMENT:**
+- Bugs found and fixed
+- Code changes and refactoring
+- Architectural decisions
+- Security improvements
+- New features
+- Important discoveries
+- TODOs for future
 
 ❌ **DO NOT DOCUMENT:**
 - Code itself (it's in git)
@@ -80,8 +109,8 @@ mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge 
 
 After EVERY task that modifies code, YOU MUST:
 
-1. ✅ Document bugs fixed: `mcp_meh_meh_write({"action": "add", "path": "@meh/bugs/...", ...})`
-2. ✅ Document changes made: `mcp_meh_meh_write({"action": "add", "path": "@meh/changelog/...", ...})`
+1. ✅ Document bugs fixed
+2. ✅ Document changes made
 3. ✅ Update related facts if needed: `mcp_meh_meh_write({"action": "extend", "fact_id": "...", ...})`
 
 **If you don't document, future AI sessions won't know what you did!**
@@ -92,36 +121,20 @@ After EVERY task that modifies code, YOU MUST:
 1. User: "How does search work?"
 2. AI: mcp_meh_meh_facts({"action": "search", "query": "search implementation"})
 3. AI: [reads results, answers with context]
-4. AI: mcp_meh_meh_write({"action": "add", "path": "@docs/search-explained", "content": "Explanation for future sessions"})
+4. AI: mcp_meh_meh_write({"action": "add", "path": "@docs/search-explained", "content": "..."})
 ```
 
-**Example: Bug Fix Workflow**
-```
-1. User: "Fix the API key length bug"
-2. AI: [fixes code]
-3. AI: mcp_meh_meh_write({
-     "action": "add",
-     "path": "@meh/bugs/api-key-length-fixed",
-     "content": "# API Key Length Bug\n\n## Problem\n...\n## Solution\n...\n## Status\nFIXED 2026-02-01"
-   })
-4. AI: mcp_meh_meh_write({
-     "action": "add", 
-     "path": "@meh/changelog/api-key-refactor-2026-02-01",
-     "content": "# Refactoring...\n..."
-   })
-```
+### Switching KBs
 
-### Context Switching (per AI session)
-
-Each AI session can have its own KB context:
+To switch between configured KBs:
 
 ```
-mcp_meh_meh_context({"action": "switch_context", "context": "local"})  # Use local SQLite
-mcp_meh_meh_context({"action": "switch_context", "context": "http://server:3000/kb-slug"})  # Use remote
-mcp_meh_meh_context({"action": "show"})  # Show current session context
+mcp_meh_meh_context({"action": "list_kbs"})  # Show all available KBs
+mcp_meh_meh_context({"action": "switch_kb", "kb_name": "kb-name"})  # Switch to different KB
+mcp_meh_meh_context({"action": "show"})  # Show current context
 ```
 
-**Note:** Context switching is PER-SESSION and doesn't affect other AI chats or CLI.
+**Note:** KBs are configured in `.meh/config.toml`. The default KB is set in `[kbs] primary = "..."`.
 
 ## 📁 Project Structure
 
@@ -129,4 +142,4 @@ mcp_meh_meh_context({"action": "show"})  # Show current session context
 
 - `src/` - source code
 - `docs/` - documentation
-- `.meh/` - knowledge base (SQLite)
+- `.meh/` - local knowledge base

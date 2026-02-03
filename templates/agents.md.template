@@ -1,0 +1,155 @@
+# AGENTS.md — Instructions for AI
+
+> Instructions for AI agents working with this knowledge base.
+
+---
+
+## 🌐 **Knowledge Base Setup**
+
+**At the beginning of EVERY session** check your current KB:
+
+### 1. Check current context:
+```
+mcp_meh_meh_context({"action": "show"})
+```
+
+### 2. If you need to switch KB:
+```
+mcp_meh_meh_context({"action": "list_kbs"})  # See available KBs
+mcp_meh_meh_context({"action": "switch_kb", "kb_name": "{KB_NAME}"})  # Switch to specific KB
+```
+
+### 3. Browse structure:
+```
+mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})
+```
+
+### 4. Check TODOs:
+```
+mcp_meh_meh_facts({"action": "browse", "path": "@todo"})
+```
+
+**After discoveries** - document for future sessions:
+```
+mcp_meh_meh_write({"action": "add", "path": "@.../bugs/name", "content": "What you found"})
+```
+
+💡 **Note:** Tools have `mcp_meh_` prefix, not just `meh_`!
+
+---
+
+## 🛠️ Available Tools (4 merged tools)
+
+| Tool | Actions | When to use |
+|------|---------|-------------|
+| `mcp_meh_meh_facts` | search, get, browse, federated_search | Read facts from knowledge base |
+| `mcp_meh_meh_write` | add, correct, extend, deprecate, bulk_vote | Write/modify facts |
+| `mcp_meh_meh_notify` | get, ack, subscribe | Manage notifications |
+| `mcp_meh_meh_context` | list_kbs, switch_kb, switch_context, show | Manage KB context and session |
+
+### Example: Bulk Voting
+```
+mcp_meh_meh_write({"action": "bulk_vote", "votes": [{"fact_id":"meh-01XXX","vote":"+1","reason":"Makes sense"}]})
+```
+
+---
+
+## 📋 Path Conventions
+
+Paths are flexible - organize them as makes sense for your use case:
+
+```
+# By type (flat)
+@docs/           - documentation
+@bugs/           - found bugs  
+@todo/           - tasks to do
+@decisions/      - architectural decisions
+
+# By project/component (hierarchical)
+@project-name/bugs/...
+@project-name/docs/...
+@component/feature/...
+
+# Examples for multi-project KB
+@frontend/bugs/login-issue
+@backend/api/auth-flow
+@infra/decisions/use-postgres
+@shared/conventions/naming
+```
+
+**💡 TIP:** Browse existing structure first and follow the conventions already in place.
+
+---
+
+## ✅ What to Document?
+
+**ALWAYS DOCUMENT:**
+- Bugs found and fixed
+- Code changes and refactoring
+- Architectural decisions
+- New features implemented
+- Important discoveries
+- TODOs for future
+
+**DO NOT DOCUMENT:**
+- Code itself (it's in git)
+- Obvious things from code
+- Temporary notes (use comments in code instead)
+
+---
+
+## 🚨 MANDATORY DOCUMENTATION CHECKLIST
+
+After EVERY task that modifies code, YOU MUST:
+
+1. ✅ Document bugs fixed
+2. ✅ Document changes made
+3. ✅ Update related facts if needed: `mcp_meh_meh_write({"action": "extend", "fact_id": "...", ...})`
+
+**If you don't document, future AI sessions won't know what you did!**
+
+---
+
+## 📖 Example Workflows
+
+### Bug Fix Workflow
+```
+1. User: "Fix the login bug"
+2. AI: mcp_meh_meh_facts({"action": "search", "query": "login bug"})
+3. AI: [fixes code]
+4. AI: mcp_meh_meh_write({
+     "action": "add",
+     "path": "@project/bugs/login-fixed",
+     "content": "# Login Bug\n\n## Problem\n...\n## Solution\n...\n## Status\nFIXED"
+   })
+```
+
+### Research Workflow
+```
+1. User: "How does the API work?"
+2. AI: mcp_meh_meh_facts({"action": "search", "query": "API implementation"})
+3. AI: [reads results, answers with context]
+4. AI: mcp_meh_meh_write({
+     "action": "add",
+     "path": "@docs/api-explained",
+     "content": "Explanation for future sessions"
+   })
+```
+
+---
+
+## 🔧 Configuration
+
+KBs are configured in `.meh/config.toml`. Default KB is set in `[kbs] primary = "..."`.
+
+| Setting | Description |
+|---------|-------------|
+| KB Name | `{KB_NAME}` |
+
+### Switching KBs
+
+```
+mcp_meh_meh_context({"action": "list_kbs"})  # Show all available KBs
+mcp_meh_meh_context({"action": "switch_kb", "kb_name": "kb-name"})  # Switch KB
+mcp_meh_meh_context({"action": "show"})  # Show current context
+```
