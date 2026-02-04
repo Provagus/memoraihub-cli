@@ -1,4 +1,4 @@
-# meh — Knowledge Base for AI Agents
+# memoraihub — Knowledge Base for AI Agents
 
 > Knowledge base for AI. Store, search, and share knowledge across sessions.
 
