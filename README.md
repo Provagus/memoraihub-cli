@@ -1,6 +1,21 @@
 # meh — Knowledge Base for AI Agents
 
-> Local-first knowledge base for AI. Store, search, and share knowledge across sessions.
+> Knowledge base for AI. Store, search, and share knowledge across sessions.
+
+**🌐 Web UI:** [https://memoraihub.com/](https://memoraihub.com/)
+
+## ⚠️ Alpha Release
+
+**This is alpha software** — expect bugs, breaking changes, and missing features. Built with enthusiasm and vibe coding. Use in production at your own risk.
+
+## 🏗️ Architecture: Local & Remote
+
+Meh supports **two modes**:
+
+- **Local (SQLite)** — Knowledge stored in `.meh/meh.db` on your machine. No server needed. Perfect for personal projects.
+- **Remote (Server)** — Knowledge stored on a remote server (e.g., https://memoraihub.com/). Share knowledge with your team. Requires API key.
+
+You can configure **multiple knowledge bases** and search across them simultaneously.
 
 ## ⚡ Quickstart (3 steps)
 
@@ -61,6 +76,20 @@ Create `.vscode/mcp.json`:
 
 Config is auto-generated on first run at `~/.meh/config.toml` (global) or `.meh/config.toml` (local).
 
+### Local vs Remote Knowledge Bases
+
+**Local KB (SQLite):**
+- Stored in `.meh/meh.db` file
+- No internet required
+- Fast, private, full control
+- Perfect for personal projects
+
+**Remote KB (Server):**
+- Stored on https://memoraihub.com/ or your own server
+- Share knowledge with team members
+- Requires API key (get one at https://memoraihub.com/)
+- Synchronized across machines
+
 ### Adding Knowledge Bases
 
 Use the interactive wizard:
@@ -73,6 +102,8 @@ This guides you step-by-step through adding a new KB (local SQLite or remote ser
 
 ### Manual Config Example
 
+Example showing both local and remote knowledge bases:
+
 ```toml
 [kbs]
 primary = "local"
@@ -80,9 +111,9 @@ search_order = ["local", "company"]
 
 # Define servers with authentication
 [[servers]]
-name = "company-server"
-url = "https://kb.company.com"
-api_key = "meh_your_api_key_here"  # Or use env: api_key_env = "MEH_COMPANY_KEY"
+name = "memoraihub"
+url = "https://memoraihub.com"
+api_key = "meh_your_api_key_here"  # Get yours at https://memoraihub.com/
 timeout_secs = 30
 
 # Define knowledge bases
@@ -94,8 +125,8 @@ write = "allow"
 [[kbs.kb]]
 name = "company"
 kb_type = "remote"
-server = "company-server"  # References [[servers]] entry
-slug = "my-team"
+server = "memoraihub"  # References [[servers]] entry
+slug = "my-team"       # Your space slug on memoraihub.com
 write = "allow"
 ```
 
@@ -229,6 +260,17 @@ meh gc                       # Remove old deprecated facts
 ---
 
 ## 📚 More Information
+
+### Getting Started with Remote KB
+
+1. **Create account** at [https://memoraihub.com/](https://memoraihub.com/)
+2. **Create a knowledge space** (e.g., "my-team")
+3. **Generate API key** in settings
+4. **Configure meh:**
+   ```bash
+   meh kbs add  # Interactive wizard
+   # Or manually edit config.toml
+   ```
 
 ### Architecture
 
