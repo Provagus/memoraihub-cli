@@ -322,9 +322,7 @@ mcp_meh_meh_context({"action": "switch_kb", "kb_name": "..."})
             .unwrap_or_else(|| parsed_slug.to_string());
 
         // Use policy from config if KB is configured, otherwise default to Ask for safety
-        self.write_policy = matched_kb
-            .map(|kb| kb.write)
-            .unwrap_or(WritePolicy::Ask);
+        self.write_policy = matched_kb.map(|kb| kb.write).unwrap_or(WritePolicy::Ask);
 
         Ok(format!(
             "✅ Switched to remote KB\n   Name:   {}\n   Server: {}\n   Slug:   {}",
