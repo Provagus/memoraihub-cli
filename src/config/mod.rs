@@ -303,10 +303,10 @@ impl Config {
     pub fn load_from(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let config: Config = toml::from_str(&content)?;
-        
+
         // Validate KB name uniqueness
         config.validate_kb_names()?;
-        
+
         Ok(config)
     }
 
@@ -314,7 +314,7 @@ impl Config {
     fn validate_kb_names(&self) -> Result<()> {
         use std::collections::HashSet;
         let mut seen = HashSet::new();
-        
+
         for kb in &self.kbs.kb {
             if !seen.insert(&kb.name) {
                 anyhow::bail!(
@@ -323,7 +323,7 @@ impl Config {
                 );
             }
         }
-        
+
         // Also validate server names are unique
         let mut seen_servers = HashSet::new();
         for server in &self.servers {
@@ -334,7 +334,7 @@ impl Config {
                 );
             }
         }
-        
+
         Ok(())
     }
 
@@ -342,7 +342,7 @@ impl Config {
     pub fn save_to(&self, path: &Path) -> Result<()> {
         // Validate before saving
         self.validate_kb_names()?;
-        
+
         let content = toml::to_string_pretty(self)?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;

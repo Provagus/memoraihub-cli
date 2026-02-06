@@ -2,144 +2,72 @@
 
 > Instructions for AI agents working in this workspace.
 
-## 🧠 Knowledge Base (meh)
+## 🧠 YOU HAVE A KNOWLEDGE BASE — USE IT!
 
-This project uses **meh** as a knowledge base for AI. You have access to MCP tools.
+This project has **meh**, a shared AI knowledge base. It contains bug reports, architectural decisions, changelogs, TODOs, and project context that you CANNOT get from code alone.
+
+**If you skip meh, you will:**
+- Repeat work that was already done
+- Miss known bugs and gotchas
+- Make decisions that contradict existing architecture
+- Leave no trace for the next AI session
+
+### 🚀 FIRST THING — before writing any code, run these:
+
+```
+mcp_meh_meh_context({"action": "show"})                                    # verify you're connected to "{KB_NAME}"
+mcp_meh_meh_notify({"action": "get"})                                      # check what changed since last session
+mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})       # see knowledge structure
+```
+
+Then, **before touching any area of code**, search meh for context:
+```
+mcp_meh_meh_facts({"action": "search", "query": "topic you're about to work on"})
+```
 
 ### ⚠️ Tool Names
 
-MCP tools have `mcp_meh_` prefix:
-- ❌ `meh_facts` (conceptual name)
-- ✅ `mcp_meh_meh_facts` (actual tool name)
+MCP tools have `mcp_meh_` prefix (not `meh_`):
 
-### 🌐 KB Configuration
+| Tool | Key actions |
+|------|-------------|
+| `mcp_meh_meh_facts` | `search`, `get`, `browse` — read from KB |
+| `mcp_meh_meh_write` | `add`, `extend`, `correct`, `deprecate` — write to KB |
+| `mcp_meh_meh_notify` | `get`, `ack` — check notifications |
+| `mcp_meh_meh_context` | `show`, `switch_kb` — manage connection |
 
-**This project uses a knowledge base.** The default KB is configured in `.meh/config.toml`.
+### When to use meh during work
+
+| Situation | What to do |
+|-----------|------------|
+| About to modify code in an area | `search` meh for that area first |
+| Found a bug | `add` to `@bugs/bug-name` or project-specific path |
+| Fixed a bug | `extend` the bug fact with fix details |
+| Made code changes | `add` to `@changelog/change-name` |
+| Made a design decision | `add` to `@decisions/decision-name` |
+| See a TODO or improvement idea | `add` to `@todo/task-name` |
+| See an RFC/proposal in meh | `bulk_vote` to share your opinion |
+| Finished your session | `ack` notifications |
+
+### After EVERY task that modifies code
+
+```
+# Document what you did:
+mcp_meh_meh_write({"action": "add", "path": "@changelog/short-name", "content": "# What Changed\n\n..."})
+
+# Acknowledge notifications
+mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})
+```
+
+**If you don't document, the next AI session starts from zero. Your work is wasted.**
+
+### KB Configuration
 
 | Setting | Value |
 |---------|-------|
 | KB Name | `{KB_NAME}` |
 
-### Session Workflow
-
-#### 1. START - at the beginning of session
+If not connected to the right KB:
 ```
-# Check current KB (should auto-connect to default from config)
-mcp_meh_meh_context({"action": "show"})
-
-# If you need to switch to a different KB:
 mcp_meh_meh_context({"action": "switch_kb", "kb_name": "{KB_NAME}"})
-
-# Then check notifications and browse
-mcp_meh_meh_notify({"action": "get"})           # check what changed
-mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})  # see structure
-mcp_meh_meh_facts({"action": "get", "id_or_path": "@readme"})  # read onboarding
 ```
-
-#### 2. WORK - during task
-```
-mcp_meh_meh_facts({"action": "search", "query": "topic"})  # BEFORE answering
-mcp_meh_meh_write({"action": "add", "path": "@path/to/fact", "content": "..."})  # document discoveries
-mcp_meh_meh_write({"action": "bulk_vote", "votes": [{"fact_id":"meh-01XXX","vote":"+1","reason":"Agree"}]})  # vote on proposals
-```
-
-#### 3. END - after finishing
-```
-mcp_meh_meh_write({"action": "add", "path": "@.../bugs/...", "content": "..."})  # DOCUMENT BUGS FIXED
-mcp_meh_meh_write({"action": "add", "path": "@.../changelog/...", "content": "..."})  # DOCUMENT CHANGES
-mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge notifications
-```
-
-**⚠️ CRITICAL: Always document your work!**
-- Fixed a bug? → document it
-- Made changes? → document them
-- Found something important? → document it
-- **DO NOT SKIP THIS STEP** - future sessions need this context!
-
-### Available Tools (4 merged tools)
-
-| Tool | Actions | When to use |
-|------|---------|-------------|
-| `mcp_meh_meh_facts` | search, get, browse, federated_search | Read facts from knowledge base |
-| `mcp_meh_meh_write` | add, correct, extend, deprecate, bulk_vote | Write/modify facts |
-| `mcp_meh_meh_notify` | get, ack, subscribe | Manage notifications |
-| `mcp_meh_meh_context` | list_kbs, switch_kb, switch_context, show | Manage KB context and session |
-
-### Path Conventions
-
-Paths are flexible - organize them as makes sense for your project. Common patterns:
-
-```
-# By type (flat)
-@docs/           - documentation
-@bugs/           - found bugs
-@todo/           - tasks to do
-@decisions/      - architectural decisions
-
-# By project/component (hierarchical)
-@project-name/bugs/...
-@project-name/docs/...
-@component/feature/...
-
-# Examples
-@backend/api/auth-flow
-@frontend/bugs/login-issue
-@infra/decisions/use-postgres
-```
-
-**💡 TIP:** Browse existing structure first with `mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})` and follow the existing conventions.
-
-### What to Document?
-
-✅ **ALWAYS DOCUMENT:**
-- Bugs found and fixed
-- Code changes and refactoring
-- Architectural decisions
-- Security improvements
-- New features
-- Important discoveries
-- TODOs for future
-
-❌ **DO NOT DOCUMENT:**
-- Code itself (it's in git)
-- Obvious things from code
-- Temporary notes (use comments in code instead)
-
-### 🚨 MANDATORY DOCUMENTATION CHECKLIST
-
-After EVERY task that modifies code, YOU MUST:
-
-1. ✅ Document bugs fixed
-2. ✅ Document changes made
-3. ✅ Update related facts if needed: `mcp_meh_meh_write({"action": "extend", "fact_id": "...", ...})`
-
-**If you don't document, future AI sessions won't know what you did!**
-
-### Example Workflow
-
-```
-1. User: "How does search work?"
-2. AI: mcp_meh_meh_facts({"action": "search", "query": "search implementation"})
-3. AI: [reads results, answers with context]
-4. AI: mcp_meh_meh_write({"action": "add", "path": "@docs/search-explained", "content": "..."})
-```
-
-### Switching KBs
-
-To switch between configured KBs:
-
-```
-mcp_meh_meh_context({"action": "list_kbs"})  # Show all available KBs
-mcp_meh_meh_context({"action": "switch_kb", "kb_name": "kb-name"})  # Switch to different KB
-mcp_meh_meh_context({"action": "show"})  # Show current context
-```
-
-**Note:** KBs are configured in `.meh/config.toml`. The default KB is set in `[kbs] primary = "..."`.
-
-## 📁 Project Structure
-
-<!-- Fill in for your project -->
-
-- `src/` - source code
-- `docs/` - documentation
-- `.meh/` - local knowledge base

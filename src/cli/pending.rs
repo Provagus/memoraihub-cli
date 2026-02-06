@@ -307,8 +307,8 @@ fn run_interactive_review(
             }
             4 => {
                 // Approve all remaining
-                for i in idx..items.len() {
-                    match &items[i] {
+                for item in items.iter().skip(idx) {
+                    match item {
                         PendingItem::Local(fact) => {
                             if let Some(storage) = storage {
                                 if let Some(ref supersedes_id) = fact.supersedes {

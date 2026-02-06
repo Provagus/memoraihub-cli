@@ -16,11 +16,11 @@
 //! # Architecture
 //! See `../../plan/ANALYSIS_KNOWLEDGE_ORGANIZATION.md`
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::Args;
 use std::collections::HashMap;
-use std::path::PathBuf;
 
+use super::utils::find_meh_dir;
 use crate::core::storage::Storage;
 
 #[derive(Args, Debug)]
@@ -187,22 +187,6 @@ impl PathTree {
 
             let new_indent = format!("{}{}", indent, if is_last_child { "    " } else { "│   " });
             child.print_level(max_depth, current_depth + 1, &new_indent, is_last_child);
-        }
-    }
-}
-
-/// Find .meh directory by walking up from current directory
-fn find_meh_dir() -> Result<PathBuf> {
-    let mut current = std::env::current_dir()?;
-
-    loop {
-        let meh_dir = current.join(".meh");
-        if meh_dir.exists() {
-            return Ok(meh_dir);
-        }
-
-        if !current.pop() {
-            bail!("Not a meh repository (or any parent directory). Run 'meh init' first.");
         }
     }
 }

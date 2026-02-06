@@ -4,46 +4,37 @@
 
 <!-- Short project/KB description - 1-2 sentences -->
 
-## For AI - Session Workflow
+## For AI — How to Use This KB
 
-### 0. FIRST: Connect to remote KB (if using remote)
-```
-mcp_meh_meh_context({"action": "switch_context", "context": "{SERVER_URL}/{KB_SLUG}"})
-```
+You have access to a knowledge base with facts from previous AI sessions.
+**Search it before coding** to avoid repeating work or missing known bugs.
 
-### 1. START session
+### Session Start
 ```
-mcp_meh_meh_notify({"action": "get"})  # check what changed
-mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})  # see structure
-mcp_meh_meh_facts({"action": "get", "id_or_path": "@readme"})  # you're reading this now
+mcp_meh_meh_context({"action": "show"})                                    # verify connection
+mcp_meh_meh_notify({"action": "get"})                                      # check what changed
+mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})       # see structure
 ```
 
-### 2. WORK
+### During Work
 ```
-mcp_meh_meh_facts({"action": "search", "query": "topic"})      # BEFORE answering
-mcp_meh_meh_write({"action": "add", "path": "@.../topic", "content": "..."})  # document discoveries
-```
-
-### 3. END
-```
-mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge notifications
+mcp_meh_meh_facts({"action": "search", "query": "topic"})                  # search BEFORE coding
+mcp_meh_meh_write({"action": "add", "path": "@path", "content": "..."})    # document discoveries
 ```
 
-## Path Structure
-
-Paths are flexible. Browse existing structure and follow conventions:
-
+### Session End
 ```
-# Common patterns:
-@docs/       - documentation
-@bugs/       - found bugs
-@todo/       - tasks to do
-@decisions/  - architectural decisions
-
-# Or organize by project/component:
-@project-name/bugs/...
-@project-name/docs/...
+mcp_meh_meh_write({"action": "add", "path": "@changelog/...", "content": "..."})  # document changes
+mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})                  # acknowledge
 ```
+
+## ⚠️ Tool Names
+
+Tools have `mcp_meh_` prefix (not `meh_`):
+- `mcp_meh_meh_facts` — search, get, browse
+- `mcp_meh_meh_write` — add, extend, correct, deprecate, bulk_vote
+- `mcp_meh_meh_notify` — get, ack
+- `mcp_meh_meh_context` — show, switch_kb
 
 ## What to Document?
 

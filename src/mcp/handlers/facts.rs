@@ -17,10 +17,13 @@ use crate::remote::BlockingRemoteClient;
 fn create_remote_client(state: &ServerState) -> Result<BlockingRemoteClient, String> {
     let config = Config::load().map_err(|e| format!("Config error: {}", e))?;
     let server_url = state.remote_url.as_deref().ok_or("No remote URL set")?;
-    
+
     // Use kb_slug for API calls (not kb_name which is just a config display name)
     let slug = state.kb_slug.as_deref().ok_or_else(|| {
-        format!("No KB slug configured for '{}'. Check config.", state.kb_name)
+        format!(
+            "No KB slug configured for '{}'. Check config.",
+            state.kb_name
+        )
     })?;
 
     BlockingRemoteClient::from_url(server_url, slug, &config)
@@ -491,72 +494,53 @@ pub fn do_deprecate(state: &mut ServerState, args: &Value) -> ToolResult {
 
 /// Get default readme content when no @readme fact exists
 fn get_default_readme_content() -> String {
-    format!(
-        r#"# meh Knowledge Base - Full Instructions
+    r#"# Knowledge Base
 
-## MCP Tools (all have `mcp_meh_meh_` prefix)
+## For AI - Session Workflow
 
-**Core:**
-- `search(query, path_filter?, limit?)` - Search knowledge BEFORE answering
-- `browse(path, mode?, depth?)` - Browse structure (mode: "ls"/"tree")
-- `get_fact(id_or_path, include_history?)` - Get full fact
-- `add(path, content, tags?)` - Add knowledge
-- `correct(fact_id, new_content, reason?)` - Correct fact (supersedes)
-- `extend(fact_id, extension)` - Extend fact
-- `deprecate(fact_id, reason?)` - Mark as outdated
-
-**Context (per-session):**
-- `switch_context(context)` - Switch to "local" or "http://server/kb"
-- `show_context()` - Show current KB context
-- `switch_kb(kb_name)` - Switch to KB from config
-
-**Other:**
-- `get_notifications(priority_min?, limit?)` - Check updates
-- `ack_notifications(notification_ids)` - Mark as read
-- `bulk_vote(votes)` - Vote on multiple facts
-
-## Session Workflow
-
-1. **START:** `browse(path="@")`, `search(query="recent")`
-2. **WORK:** Search first, then add discoveries
-3. **END:** `ack_notifications(["*"])`
-
-## Context Switching
-
-Each AI session has independent context:
+### 0. FIRST: Connect to remote KB (if using remote)
 ```
-switch_context(context="local")  # Local SQLite
-switch_context(context="http://server:3000/kb-slug")  # Remote
-show_context()  # Check current
+mcp_meh_meh_context({"action": "switch_context", "context": "SERVER_URL/KB_SLUG"})
 ```
 
-**Important:** Per-session, doesn't affect other chats or CLI!
+### 1. START session
+```
+mcp_meh_meh_notify({"action": "get"})  # check what changed
+mcp_meh_meh_facts({"action": "browse", "path": "@", "mode": "tree"})  # see structure
+mcp_meh_meh_facts({"action": "get", "id_or_path": "@readme"})  # you're reading this now
+```
 
-## Path Conventions
+### 2. WORK
+```
+mcp_meh_meh_facts({"action": "search", "query": "topic"})      # BEFORE answering
+mcp_meh_meh_write({"action": "add", "path": "@.../topic", "content": "..."})  # document discoveries
+```
 
-- `@meh/bugs/*` - Found bugs
-- `@meh/todo/*` - Tasks to do
-- `@meh/architecture/*` - Decisions
-- `@meh/board/*` - Status/feedback
-- `@docs/*` - Documentation
-- `@readme` - Global instructions
-- `@readme/{{kb}}` - KB-specific instructions
+### 3. END
+```
+mcp_meh_meh_notify({"action": "ack", "notification_ids": ["*"]})  # acknowledge notifications
+```
+
+## Path Structure
+
+Paths are flexible. Browse existing structure and follow conventions:
+
+```
+# Common patterns:
+@docs/       - documentation
+@bugs/       - found bugs
+@todo/       - tasks to do
+@decisions/  - architectural decisions
+```
 
 ## What to Document?
 
-✅ **YES:** Bugs, decisions, solutions, TODOs, observations  
-❌ **NO:** Code (in repo), obvious things, temp notes
-
-## Tips
-
-- Search BEFORE answering - answer might exist!
-- Use `bulk_vote` for multiple proposals
-- Extend facts to add votes/comments
-- Tag facts for categorization
+✅ YES: bugs, decisions, solutions, TODOs, discoveries
+❌ NO: code (it's in git), obvious things, temporary notes
 
 ---
 
-💡 **This is the default readme.** Add `@readme` fact to customize globally, or `@readme/{{kb_name}}` for this KB.
+💡 **This is the default readme.** Add `@readme` fact to customize it for this KB.
 "#
-    )
+    .to_string()
 }

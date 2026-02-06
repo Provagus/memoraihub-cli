@@ -15,8 +15,8 @@
 use anyhow::{bail, Result};
 use clap::Args;
 use std::fs;
-use std::path::PathBuf;
 
+use super::utils::find_meh_dir;
 use crate::core::fact::Fact;
 use crate::core::path::Path;
 use crate::core::storage::Storage;
@@ -97,20 +97,4 @@ pub fn run(args: AddArgs) -> Result<()> {
     println!("   Title: {}", fact.title);
 
     Ok(())
-}
-
-/// Find .meh directory by walking up from current directory
-fn find_meh_dir() -> Result<PathBuf> {
-    let mut current = std::env::current_dir()?;
-
-    loop {
-        let meh_dir = current.join(".meh");
-        if meh_dir.exists() {
-            return Ok(meh_dir);
-        }
-
-        if !current.pop() {
-            bail!("Not a meh repository (or any parent directory). Run 'meh init' first.");
-        }
-    }
 }

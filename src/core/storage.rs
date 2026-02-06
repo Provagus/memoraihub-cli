@@ -390,8 +390,7 @@ impl Storage {
                         let chain = self.get_superseding_facts(&ulid)?;
                         if let Some(latest) = chain
                             .into_iter()
-                            .filter(|f| f.status == crate::core::fact::Status::Active)
-                            .last()
+                            .rfind(|f| f.status == crate::core::fact::Status::Active)
                         {
                             return Ok(Some((latest, true)));
                         }

@@ -20,6 +20,7 @@ pub mod remote_ops;
 pub mod search;
 pub mod show;
 pub mod stats;
+pub mod utils;
 
 /// meh - AI Knowledge Management CLI
 ///

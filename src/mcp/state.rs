@@ -38,35 +38,44 @@ impl ServerState {
     pub fn new(storage: Storage) -> Self {
         let session_id = format!("mcp-{}", Ulid::new());
 
-        let (kb_name, kb_slug, write_policy, is_remote, remote_url, session_context) = match Config::load() {
-            Ok(config) => {
-                let kb_name = config.primary_kb().to_string();
-                let policy = config.get_write_policy(&kb_name);
-                let kb_config = config.get_kb(&kb_name);
-                let is_remote = kb_config.map(|k| k.kb_type == "remote").unwrap_or(false);
+        let (kb_name, kb_slug, write_policy, is_remote, remote_url, session_context) =
+            match Config::load() {
+                Ok(config) => {
+                    let kb_name = config.primary_kb().to_string();
+                    let policy = config.get_write_policy(&kb_name);
+                    let kb_config = config.get_kb(&kb_name);
+                    let is_remote = kb_config.map(|k| k.kb_type == "remote").unwrap_or(false);
 
-                // Get slug from KB config (for remote API calls)
-                let slug = kb_config.and_then(|k| k.slug.clone());
+                    // Get slug from KB config (for remote API calls)
+                    let slug = kb_config.and_then(|k| k.slug.clone());
 
-                let url = kb_config.and_then(|k| {
-                    k.server
-                        .as_ref()
-                        .and_then(|srv_name| config.get_server(srv_name).map(|s| s.url.clone()))
-                });
+                    let url = kb_config.and_then(|k| {
+                        k.server
+                            .as_ref()
+                            .and_then(|srv_name| config.get_server(srv_name).map(|s| s.url.clone()))
+                    });
 
-                // Build session_context for remote KB
-                let ctx = if is_remote {
-                    slug.as_ref().and_then(|s| {
-                        url.as_ref().map(|u| format!("{}/{}", u.trim_end_matches('/'), s))
-                    })
-                } else {
-                    Some("local".to_string())
-                };
+                    // Build session_context for remote KB
+                    let ctx = if is_remote {
+                        slug.as_ref().and_then(|s| {
+                            url.as_ref()
+                                .map(|u| format!("{}/{}", u.trim_end_matches('/'), s))
+                        })
+                    } else {
+                        Some("local".to_string())
+                    };
 
-                (kb_name, slug, policy, is_remote, url, ctx)
-            }
-            Err(_) => ("local".to_string(), None, WritePolicy::Allow, false, None, Some("local".to_string())),
-        };
+                    (kb_name, slug, policy, is_remote, url, ctx)
+                }
+                Err(_) => (
+                    "local".to_string(),
+                    None,
+                    WritePolicy::Allow,
+                    false,
+                    None,
+                    Some("local".to_string()),
+                ),
+            };
 
         Self {
             storage,
@@ -200,7 +209,7 @@ mcp_meh_meh_context({"action": "switch_kb", "kb_name": "..."})
             let server = config.get_server_for_kb(kb_name);
             self.is_remote_kb = true;
             self.remote_url = server.map(|s| s.url.clone());
-            
+
             // Build full URL for session_context
             if let (Some(ref url), Some(ref slug)) = (&self.remote_url, &kb_config.slug) {
                 self.session_context = Some(format!("{}/{}", url.trim_end_matches('/'), slug));
@@ -299,8 +308,8 @@ mcp_meh_meh_context({"action": "switch_kb", "kb_name": "..."})
             cfg.kbs.kb.iter().find(|kb| {
                 kb.kb_type == "remote"
                     && kb.slug.as_deref() == Some(parsed_slug)
-                    && kb.server.as_ref().map_or(false, |srv_name| {
-                        cfg.get_server(srv_name).map_or(false, |s| {
+                    && kb.server.as_ref().is_some_and(|srv_name| {
+                        cfg.get_server(srv_name).is_some_and(|s| {
                             s.url.trim_end_matches('/') == server_url.trim_end_matches('/')
                         })
                     })
@@ -314,7 +323,7 @@ mcp_meh_meh_context({"action": "switch_kb", "kb_name": "..."})
 
         // Use policy from config if KB is configured, otherwise default to Ask for safety
         self.write_policy = matched_kb
-            .map(|kb| kb.write.clone())
+            .map(|kb| kb.write)
             .unwrap_or(WritePolicy::Ask);
 
         Ok(format!(
@@ -330,9 +339,7 @@ mcp_meh_meh_context({"action": "switch_kb", "kb_name": "..."})
         output.push_str(&format!("   KB Name: {}\n", self.kb_name));
 
         if self.is_remote_kb {
-            output.push_str(&format!(
-                "   Type:    remote\n"
-            ));
+            output.push_str("   Type:    remote\n");
             output.push_str(&format!(
                 "   Server:  {}\n",
                 self.remote_url.as_deref().unwrap_or("unknown")

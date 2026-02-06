@@ -12,12 +12,11 @@
 //! - `correct` = "this replaces that" (supersedes)
 //! - `extend` = "this adds to that" (extends)
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::Args;
 use std::fs;
-use std::path::PathBuf;
-use ulid::Ulid;
 
+use super::utils::{find_fact, find_meh_dir};
 use crate::core::fact::Fact;
 use crate::core::storage::Storage;
 
@@ -65,38 +64,4 @@ pub fn run(args: ExtendArgs) -> Result<()> {
     println!("   Path: {}", extension.path);
 
     Ok(())
-}
-
-/// Find a fact by ID or path
-fn find_fact(storage: &Storage, target: &str) -> Result<Fact> {
-    if target.starts_with("meh-") {
-        let id_str = target.trim_start_matches("meh-");
-        let id =
-            Ulid::from_string(id_str).map_err(|_| anyhow::anyhow!("Invalid meh ID: {}", target))?;
-        storage
-            .get_by_id(&id)?
-            .ok_or_else(|| anyhow::anyhow!("Fact not found: {}", target))
-    } else {
-        let facts = storage.get_by_path(target)?;
-        facts
-            .into_iter()
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("Fact not found: {}", target))
-    }
-}
-
-/// Find .meh directory by walking up from current directory
-fn find_meh_dir() -> Result<PathBuf> {
-    let mut current = std::env::current_dir()?;
-
-    loop {
-        let meh_dir = current.join(".meh");
-        if meh_dir.exists() {
-            return Ok(meh_dir);
-        }
-
-        if !current.pop() {
-            bail!("Not a meh repository (or any parent directory). Run 'meh init' first.");
-        }
-    }
 }

@@ -34,6 +34,7 @@ pub struct BlockingRemoteClient {
     server_url: String,
     kb_slug: String,
     api_key: Option<String>,
+    #[allow(dead_code)]
     timeout_secs: u64,
 }
 

@@ -132,7 +132,7 @@ pub fn do_federated_search(_state: &ServerState, args: &Value) -> ToolResult {
                 };
                 result.push_str(&format!("  {}\n", short.replace('\n', " ")));
             }
-            result.push_str("\n");
+            result.push('\n');
         }
     }
 
@@ -350,9 +350,7 @@ fn get_onboarding_content(state: &ServerState) -> String {
 
         if readme.is_some() {
             // Custom @readme exists - show short hint to read it
-            return format!(
-                "📖 **Welcome!** Use `mcp_meh_meh_get_fact(id_or_path=\"@readme\")` for full instructions.\n\n"
-            );
+            return "📖 **Welcome!** Use `mcp_meh_meh_get_fact(id_or_path=\"@readme\")` for full instructions.\n\n".to_string();
         } else {
             // No @readme - show default short hint
             return get_default_onboarding_hint();
@@ -363,8 +361,7 @@ fn get_onboarding_content(state: &ServerState) -> String {
 
 /// Short default onboarding hint when no @readme exists
 fn get_default_onboarding_hint() -> String {
-    format!(
-        r#"📖 **Welcome to meh knowledge base!**
+    r#"📖 **Welcome to meh knowledge base!**
 
 **Quick start (4 merged tools):**
 - `mcp_meh_meh_facts({{"action": "search", "query": "..."}})` - search knowledge
@@ -375,5 +372,5 @@ fn get_default_onboarding_hint() -> String {
 **Tip:** Add `@readme` fact with instructions, or `@readme/{{kb}}` for this KB specifically.
 
 "#
-    )
+    .to_string()
 }
